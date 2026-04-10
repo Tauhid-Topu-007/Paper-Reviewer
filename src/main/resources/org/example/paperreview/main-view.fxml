@@ -35,6 +35,8 @@
                         <MenuItem text="Export as PDF" onAction="#handleExportPDF"/>
                     </Menu>
                     <SeparatorMenuItem/>
+                    <MenuItem text="Save Highlighted PDF" onAction="#saveHighlightedPDF"/>
+                    <SeparatorMenuItem/>
                     <MenuItem text="Exit" onAction="#handleExit"/>
                 </Menu>
                 <Menu text="View">
@@ -52,7 +54,11 @@
                 <Button text="Upload PDF" onAction="#handleOpenPDF"/>
                 <Button text="Analyze Paper" onAction="#handleAnalyze"/>
                 <Button text="Show Source Lines" onAction="#handleShowSourceLines"/>
-                <Button text="Highlight Extracted Info" onAction="#handleHighlightExtractedInfo" style="-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                <Separator/>
+                <Button text="🔆 Highlight Extracted Info" onAction="#handleHighlightExtractedInfo" style="-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                <Button text="📂 Open Highlighted PDF" onAction="#openHighlightedPDF" style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                <Button text="💾 Save Highlighted PDF" onAction="#saveHighlightedPDF" style="-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                <Separator/>
                 <Button text="Export Report" onAction="#handleExport"/>
                 <Button text="Clear All" onAction="#handleClear"/>
                 <Separator/>

@@ -16,7 +16,9 @@ import org.example.paperreview.service.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainController {
 
@@ -77,8 +79,10 @@ public class MainController {
     private NLPAnalysisService nlpService;
     private SectionClassifierService sectionClassifier;
     private ExportService exportService;
+    private PDFHighlighterService pdfHighlighter;
     private PaperAnalysis currentAnalysis;
     private File currentPDFFile;
+    private File highlightedPDFFile;
     private boolean pdfViewerLoaded = false;
 
     @FXML
@@ -87,6 +91,7 @@ public class MainController {
         nlpService = new NLPAnalysisService();
         sectionClassifier = new SectionClassifierService();
         exportService = new ExportService();
+        pdfHighlighter = new PDFHighlighterService();
         currentAnalysis = new PaperAnalysis();
 
         // Set up list views
@@ -233,7 +238,7 @@ public class MainController {
             try {
                 pdfParser.loadPDF(file);
                 loadPDFPreview(file);
-                statusLabel.setText("PDF loaded successfully");
+                statusLabel.setText("PDF loaded successfully. Pages: " + pdfParser.getNumberOfPages());
             } catch (IOException e) {
                 showError("Error loading PDF", e.getMessage());
                 statusLabel.setText("Error loading PDF");
@@ -243,37 +248,28 @@ public class MainController {
 
     private void loadPDFPreview(File file) {
         try {
-            // Convert PDF file to data URL for PDF.js
             String pdfDataUrl = "file:///" + file.getAbsolutePath().replace("\\", "/");
-
-            // Load the PDF.js viewer HTML
             java.net.URL viewerUrl = getClass().getResource("/org/example/paperreview/pdf-viewer.html");
             if (viewerUrl != null) {
                 pdfPreview.getEngine().load(viewerUrl.toExternalForm());
                 pdfViewerLoaded = false;
-
-                // Wait for page to load then load the PDF
                 pdfPreview.getEngine().getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
                     if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
                         pdfViewerLoaded = true;
                         String script = String.format(
-                                "if (typeof loadPDFFromJava !== 'undefined') {" +
-                                        "  loadPDFFromJava('%s');" +
-                                        "}",
+                                "if (typeof loadPDFFromJava !== 'undefined') { loadPDFFromJava('%s'); }",
                                 pdfDataUrl
                         );
                         Platform.runLater(() -> pdfPreview.getEngine().executeScript(script));
                     }
                 });
             } else {
-                // Fallback to simple HTML view
                 pdfPreview.getEngine().loadContent(
                         "<html><body style='font-family: Arial; padding: 20px;'>" +
                                 "<h2>PDF Loaded Successfully</h2>" +
                                 "<p>File: " + file.getName() + "</p>" +
                                 "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
-                                "<p style='color: orange;'>Note: Advanced highlighting requires internet connection for PDF.js library</p>" +
-                                "<p>Click 'Highlight Extracted Info' to see extracted information highlighted</p>" +
+                                "<p style='color: green;'>Click 'Highlight Extracted Info' to create a highlighted PDF</p>" +
                                 "</body></html>"
                 );
                 pdfViewerLoaded = true;
@@ -282,8 +278,7 @@ public class MainController {
             e.printStackTrace();
             pdfPreview.getEngine().loadContent(
                     "<html><body style='font-family: Arial; padding: 20px;'>" +
-                            "<h2>PDF Viewer Error</h2>" +
-                            "<p>Could not load PDF viewer: " + e.getMessage() + "</p>" +
+                            "<h2>PDF Loaded</h2>" +
                             "<p>File: " + file.getName() + "</p>" +
                             "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
                             "</body></html>"
@@ -304,95 +299,54 @@ public class MainController {
             return;
         }
 
-        if (!pdfViewerLoaded) {
-            showError("PDF Viewer Not Ready", "Please wait for the PDF viewer to load completely");
-            return;
-        }
-
-        statusLabel.setText("Preparing highlights for extracted information...");
+        statusLabel.setText("Creating highlighted PDF...");
         progressIndicator.setVisible(true);
 
-        // Run highlighting in background
-        Task<Void> highlightTask = new Task<>() {
+        Task<File> highlightTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
-                updateMessage("Extracting key phrases from summary...");
+            protected File call() throws Exception {
+                updateMessage("Preparing extracted information for highlighting...");
 
                 ExtractedInfo info = currentAnalysis.getExtractedInfo();
-                List<HighlightData> highlights = new ArrayList<>();
+                Map<String, String> extractedInfoMap = new LinkedHashMap<>();
 
-                // Extract key phrases from summary
-                String summary = currentAnalysis.getSummary();
-                if (summary != null && !summary.isEmpty()) {
-                    List<String> summaryPhrases = extractKeyPhrasesForHighlight(summary);
-                    if (!summaryPhrases.isEmpty()) {
-                        highlights.add(new HighlightData(summaryPhrases, 1, "rgba(255, 255, 0, 0.5)"));
-                    }
-                }
+                // Add all extracted information for highlighting
+                addToHighlightMap(extractedInfoMap, "Paper Title", info.getPaperTitle());
+                addToHighlightMap(extractedInfoMap, "Authors", info.getAuthors());
+                addToHighlightMap(extractedInfoMap, "Abstract", info.getAbstractText());
+                addToHighlightMap(extractedInfoMap, "Research Domain", info.getResearchDomain());
+                addToHighlightMap(extractedInfoMap, "Research Problem", info.getResearchProblem());
+                addToHighlightMap(extractedInfoMap, "Research Gap", info.getResearchGap());
+                addToHighlightMap(extractedInfoMap, "Methodology", info.getMethodology());
+                addToHighlightMap(extractedInfoMap, "Executive Summary", currentAnalysis.getSummary());
 
-                // Extract from research problem
-                if (info.getResearchProblem() != null && !info.getResearchProblem().equals("Not clearly stated")) {
-                    List<String> phrases = extractKeyPhrasesForHighlight(info.getResearchProblem());
-                    if (!phrases.isEmpty()) {
-                        highlights.add(new HighlightData(phrases, 1, "rgba(255, 255, 0, 0.5)"));
-                    }
-                }
-
-                // Extract from research gap
-                if (info.getResearchGap() != null && !info.getResearchGap().equals("Not explicitly stated")) {
-                    List<String> phrases = extractKeyPhrasesForHighlight(info.getResearchGap());
-                    if (!phrases.isEmpty()) {
-                        highlights.add(new HighlightData(phrases, 1, "rgba(255, 255, 0, 0.5)"));
-                    }
-                }
-
-                // Extract from methodology
-                if (info.getMethodology() != null && !info.getMethodology().equals("Not clearly described")) {
-                    List<String> phrases = extractKeyPhrasesForHighlight(info.getMethodology());
-                    if (!phrases.isEmpty()) {
-                        highlights.add(new HighlightData(phrases, 2, "rgba(255, 255, 0, 0.5)"));
-                    }
-                }
-
-                // Extract from key findings
-                if (info.getKeyFindings() != null && !info.getKeyFindings().isEmpty()) {
-                    for (String finding : info.getKeyFindings()) {
-                        if (finding != null && !finding.equals("Key findings not clearly presented")) {
-                            List<String> phrases = extractKeyPhrasesForHighlight(finding);
-                            if (!phrases.isEmpty()) {
-                                highlights.add(new HighlightData(phrases, 3, "rgba(255, 255, 0, 0.5)"));
-                            }
+                // Add key findings
+                if (info.getKeyFindings() != null) {
+                    for (int i = 0; i < Math.min(5, info.getKeyFindings().size()); i++) {
+                        String finding = info.getKeyFindings().get(i);
+                        if (isValidForHighlight(finding)) {
+                            extractedInfoMap.put("Key Finding " + (i + 1), finding);
                         }
                     }
                 }
 
-                // Extract from abstract
-                if (info.getAbstractText() != null && !info.getAbstractText().equals("Abstract not available")) {
-                    List<String> phrases = extractKeyPhrasesForHighlight(info.getAbstractText());
-                    if (!phrases.isEmpty()) {
-                        highlights.add(new HighlightData(phrases, 1, "rgba(255, 255, 0, 0.5)"));
-                    }
+                // Add limitations
+                if (isValidForHighlight(info.getLimitations())) {
+                    extractedInfoMap.put("Limitations", info.getLimitations());
                 }
 
-                updateMessage("Applying " + highlights.size() + " highlights to PDF...");
+                // Add future work
+                if (isValidForHighlight(info.getFutureWork())) {
+                    extractedInfoMap.put("Future Work", info.getFutureWork());
+                }
 
-                // Convert to JSON and send to PDF viewer
-                String highlightsJson = convertHighlightsToJson(highlights);
+                updateMessage("Highlighting " + extractedInfoMap.size() + " items in PDF...");
 
-                Platform.runLater(() -> {
-                    String script = String.format(
-                            "if (typeof highlightFromJava !== 'undefined') {" +
-                                    "  highlightFromJava('%s');" +
-                                    "} else {" +
-                                    "  console.log('Highlight function not available');" +
-                                    "  alert('PDF viewer not fully loaded. Please wait and try again.');" +
-                                    "}",
-                            escapeJson(highlightsJson)
-                    );
-                    pdfPreview.getEngine().executeScript(script);
-                });
+                // Create highlighted PDF using PDFBox
+                PDFHighlighterService highlighter = new PDFHighlighterService();
+                File highlightedFile = highlighter.createHighlightedPDF(currentPDFFile, extractedInfoMap);
 
-                return null;
+                return highlightedFile;
             }
         };
 
@@ -402,133 +356,100 @@ public class MainController {
 
         highlightTask.setOnSucceeded(e -> {
             statusLabel.textProperty().unbind();
-            statusLabel.setText("Highlights applied to PDF!");
+            highlightedPDFFile = highlightTask.getValue();
+            statusLabel.setText("Highlighted PDF created successfully!");
             progressIndicator.setVisible(false);
-            showInfo("Highlight Complete",
-                    "✓ Extracted information has been highlighted in the PDF viewer with yellow color\n\n" +
-                            "• Hover over any yellow highlight to see the extracted text\n" +
-                            "• Use the PDF toolbar to navigate and search\n" +
-                            "• Click 'Clear Highlights' to remove all highlights");
+
+            // Auto-open the highlighted PDF
+            try {
+                java.awt.Desktop.getDesktop().open(highlightedPDFFile);
+                showInfo("Highlight Complete",
+                        "✓ PDF has been highlighted successfully!\n\n" +
+                                "• All extracted information is highlighted in YELLOW color\n" +
+                                "• The highlighted PDF has been opened automatically\n" +
+                                "• You can save it using File menu\n\n" +
+                                "Highlighted items:\n" +
+                                "• Paper Title, Authors, Abstract\n" +
+                                "• Research Problem, Research Gap\n" +
+                                "• Methodology, Key Findings\n" +
+                                "• Limitations, Future Work\n" +
+                                "• Executive Summary");
+            } catch (IOException ex) {
+                showInfo("Highlight Complete",
+                        "✓ PDF has been highlighted successfully!\n\nFile saved at:\n" + highlightedPDFFile.getAbsolutePath());
+            }
         });
 
         highlightTask.setOnFailed(e -> {
             statusLabel.textProperty().unbind();
             statusLabel.setText("Highlight failed");
             progressIndicator.setVisible(false);
-            showError("Highlight Failed", highlightTask.getException().getMessage());
+            Throwable exception = highlightTask.getException();
+            showError("Highlight Failed", exception != null ? exception.getMessage() : "Unknown error");
+            exception.printStackTrace();
         });
 
         new Thread(highlightTask).start();
     }
 
-    // Helper class for highlight data
-    private static class HighlightData {
-        List<String> texts;
-        int page;
-        String color;
-
-        HighlightData(List<String> texts, int page, String color) {
-            this.texts = texts;
-            this.page = page;
-            this.color = color;
+    @FXML
+    private void openHighlightedPDF() {
+        if (highlightedPDFFile != null && highlightedPDFFile.exists()) {
+            try {
+                java.awt.Desktop.getDesktop().open(highlightedPDFFile);
+                statusLabel.setText("Opened highlighted PDF");
+            } catch (IOException e) {
+                showError("Cannot Open PDF", "Could not open the PDF file: " + e.getMessage());
+            }
+        } else {
+            showError("No Highlighted PDF", "Please click 'Highlight Extracted Info' first to create a highlighted PDF");
         }
     }
 
-    // Extract key phrases from text (split into meaningful chunks)
-    private List<String> extractKeyPhrases(String text) {
-        List<String> phrases = new ArrayList<>();
-        if (text == null || text.isEmpty()) return phrases;
+    @FXML
+    private void saveHighlightedPDF() {
+        if (highlightedPDFFile == null || !highlightedPDFFile.exists()) {
+            showError("No Highlighted PDF", "Please click 'Highlight Extracted Info' first to create a highlighted PDF");
+            return;
+        }
 
-        // Split by sentences
-        String[] sentences = text.split("[.!?]+");
-        for (String sentence : sentences) {
-            String trimmed = sentence.trim();
-            if (trimmed.length() > 15 && trimmed.length() < 200) {
-                phrases.add(trimmed);
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Highlighted PDF");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PDF Files", "*.pdf")
+        );
+        fileChooser.setInitialFileName("highlighted_paper.pdf");
+
+        File saveFile = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
+        if (saveFile != null) {
+            try {
+                java.nio.file.Files.copy(highlightedPDFFile.toPath(), saveFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                showInfo("Save Successful", "Highlighted PDF saved to:\n" + saveFile.getAbsolutePath());
+                statusLabel.setText("Highlighted PDF saved!");
+            } catch (IOException e) {
+                showError("Save Failed", "Could not save file: " + e.getMessage());
             }
         }
-
-        // If no sentences found, add the whole text
-        if (phrases.isEmpty() && text.length() > 15) {
-            phrases.add(text.substring(0, Math.min(200, text.length())));
-        }
-
-        return phrases;
     }
 
-    // Enhanced method to extract key phrases for highlighting
-    private List<String> extractKeyPhrasesForHighlight(String text) {
-        List<String> phrases = new ArrayList<>();
-        if (text == null || text.isEmpty()) return phrases;
-
-        // Remove common stop words and clean text
-        String cleanText = text.replaceAll("[^a-zA-Z0-9\\s.]", " ");
-        cleanText = cleanText.replaceAll("\\s+", " ").trim();
-
-        // Extract meaningful sentences (15-200 characters)
-        String[] sentences = cleanText.split("[.!?]+");
-        for (String sentence : sentences) {
-            String trimmed = sentence.trim();
-            if (trimmed.length() > 20 && trimmed.length() < 250) {
-                // Check if it contains meaningful words
-                String[] words = trimmed.split("\\s+");
-                if (words.length >= 3) {
-                    phrases.add(trimmed);
-                }
-            }
+    private void addToHighlightMap(Map<String, String> map, String key, String value) {
+        if (isValidForHighlight(value)) {
+            String shortValue = value.length() > 500 ? value.substring(0, 500) : value;
+            map.put(key, shortValue);
         }
-
-        // If no good sentences, take first 100 chars of the whole text
-        if (phrases.isEmpty() && cleanText.length() > 20) {
-            String shortText = cleanText.substring(0, Math.min(150, cleanText.length()));
-            if (shortText.split("\\s+").length >= 3) {
-                phrases.add(shortText);
-            }
-        }
-
-        // Limit to 5 phrases per text to avoid overwhelming
-        if (phrases.size() > 5) {
-            phrases = phrases.subList(0, 5);
-        }
-
-        return phrases;
     }
 
-    // Convert highlights to JSON
-    private String convertHighlightsToJson(List<HighlightData> highlights) {
-        StringBuilder json = new StringBuilder("[");
-        for (int i = 0; i < highlights.size(); i++) {
-            HighlightData h = highlights.get(i);
-            if (i > 0) json.append(",");
-            json.append("{");
-            json.append("\"texts\":").append(convertTextsToJson(h.texts));
-            json.append(",\"page\":").append(h.page);
-            json.append(",\"color\":\"").append(h.color).append("\"");
-            json.append("}");
+    private boolean isValidForHighlight(String text) {
+        if (text == null || text.isEmpty()) return false;
+        String[] invalidValues = {"N/A", "Not found", "Not available", "Not clearly stated",
+                "Not explicitly stated", "Not clearly described", "Not specified",
+                "No summary available", "Abstract not available", "Keywords not found",
+                "Authors not found", "Title not found"};
+        for (String invalid : invalidValues) {
+            if (text.equals(invalid)) return false;
         }
-        json.append("]");
-        return json.toString();
-    }
-
-    // Convert texts list to JSON array
-    private String convertTextsToJson(List<String> texts) {
-        StringBuilder json = new StringBuilder("[");
-        for (int i = 0; i < texts.size(); i++) {
-            if (i > 0) json.append(",");
-            json.append("\"").append(escapeJson(texts.get(i))).append("\"");
-        }
-        json.append("]");
-        return json.toString();
-    }
-
-    // Escape JSON string
-    private String escapeJson(String str) {
-        if (str == null) return "";
-        return str.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+        return text.length() > 20;
     }
 
     @FXML
@@ -662,12 +583,10 @@ public class MainController {
         ExtractedInfo info = analysis.getExtractedInfo();
 
         Platform.runLater(() -> {
-            // Basic Information
             paperTitleLabel.setText(info.getPaperTitle() != null ? info.getPaperTitle() : "N/A");
             authorsLabel.setText(info.getAuthors() != null ? info.getAuthors() : "N/A");
             publicationLabel.setText(info.getPublicationCategory() != null ? info.getPublicationCategory() : "N/A");
 
-            // Enhanced Information
             if (abstractLabel != null) abstractLabel.setText(info.getAbstractText() != null ? info.getAbstractText() : "N/A");
             if (keywordsLabel != null) keywordsLabel.setText(info.getKeywords() != null ? info.getKeywords() : "N/A");
             if (venueLabel != null) venueLabel.setText(info.getPublicationVenue() != null ? info.getPublicationVenue() : "N/A");
@@ -683,7 +602,6 @@ public class MainController {
             if (referencesLabel != null) referencesLabel.setText(String.valueOf(info.getTotalReferences()));
             if (readabilityLabel != null) readabilityLabel.setText(String.format("%.2f - %s", info.getReadabilityScore(), info.getLanguageComplexity()));
 
-            // Research Components
             domainLabel.setText(info.getResearchDomain() != null ? info.getResearchDomain() : "N/A");
             problemLabel.setText(info.getResearchProblem() != null ? info.getResearchProblem() : "N/A");
             gapLabel.setText(info.getResearchGap() != null ? info.getResearchGap() : "N/A");
@@ -696,28 +614,21 @@ public class MainController {
                     String.join("\n", info.getKeyFindings()) : "N/A");
             citationsLabel.setText(info.getCitations() != null ? info.getCitations().size() + " citations found" : "0 citations found");
 
-            // Review assistant
             summaryArea.setText(analysis.getSummary() != null ? analysis.getSummary() : "No summary available");
 
             strengthsList.getItems().clear();
             if (analysis.getStrengths() != null && !analysis.getStrengths().isEmpty()) {
                 strengthsList.getItems().addAll(analysis.getStrengths());
-            } else {
-                strengthsList.setPlaceholder(new Label("No strengths identified"));
             }
 
             weaknessesList.getItems().clear();
             if (analysis.getWeaknesses() != null && !analysis.getWeaknesses().isEmpty()) {
                 weaknessesList.getItems().addAll(analysis.getWeaknesses());
-            } else {
-                weaknessesList.setPlaceholder(new Label("No weaknesses identified"));
             }
 
             futureScopeList.getItems().clear();
             if (analysis.getFutureResearchScope() != null && !analysis.getFutureResearchScope().isEmpty()) {
                 futureScopeList.getItems().addAll(analysis.getFutureResearchScope());
-            } else {
-                futureScopeList.setPlaceholder(new Label("No future scope identified"));
             }
 
             qualityScoreBar.setProgress(analysis.getQualityScore() / 100.0);
@@ -733,13 +644,7 @@ public class MainController {
             showError("No Analysis", "Please analyze a paper first");
             return;
         }
-
-        pdfPreview.getEngine().executeScript(
-                "document.body.style.backgroundColor = '#ffff00';" +
-                        "alert('Source highlighting would show exact extraction locations from the PDF.');"
-        );
-
-        statusLabel.setText("Source highlighting feature ready");
+        statusLabel.setText("Use 'Highlight Extracted Info' to see source locations");
     }
 
     @FXML
@@ -751,9 +656,7 @@ public class MainController {
 
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Export to CSV");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("CSV Files", "*.csv")
-        );
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files", "*.csv"));
         fileChooser.setInitialFileName("paper_analysis_report.csv");
 
         File file = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
@@ -777,9 +680,7 @@ public class MainController {
 
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Export to DOCX");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("DOCX Files", "*.docx")
-        );
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("DOCX Files", "*.docx"));
         fileChooser.setInitialFileName("paper_analysis_report.docx");
 
         File file = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
@@ -803,9 +704,7 @@ public class MainController {
 
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Export to PDF");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PDF Files", "*.pdf")
-        );
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Files", "*.pdf"));
         fileChooser.setInitialFileName("paper_analysis_report.pdf");
 
         File file = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
@@ -889,8 +788,6 @@ public class MainController {
                 if (getClass().getResource(darkModeCSS) != null) {
                     scene.getStylesheets().add(getClass().getResource(darkModeCSS).toExternalForm());
                     statusLabel.setText("Dark mode enabled");
-                } else {
-                    showError("CSS Not Found", "Dark mode CSS file not found");
                 }
             } catch (Exception e) {
                 showError("Error", "Could not load dark mode CSS");
@@ -912,7 +809,7 @@ public class MainController {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About");
         alert.setHeaderText("Academic Paper Review Assistant");
-        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nEnhanced Features:\n- Comprehensive information extraction\n- Advanced NLP-based analysis\n- Quality assessment with recommendations\n- Multiple export formats (CSV, DOCX, PDF)\n- PDF highlighting of extracted information\n- Paper metadata extraction\n- Readability analysis\n- Custom window controls\n- Dark/Light mode support");
+        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nEnhanced Features:\n- Comprehensive information extraction\n- Advanced NLP-based analysis\n- Quality assessment with recommendations\n- Multiple export formats (CSV, DOCX, PDF)\n- PDF highlighting with yellow color\n- Paper metadata extraction\n- Readability analysis\n- Custom window controls\n- Dark/Light mode support");
         alert.showAndWait();
     }
 
@@ -924,12 +821,9 @@ public class MainController {
         alert.setContentText("1. Click 'Upload PDF' to select a research paper\n" +
                 "2. Click 'Analyze Paper' to extract comprehensive information\n" +
                 "3. View extracted information in the tabs\n" +
-                "4. Click 'Highlight Extracted Info' to see where information was found in the PDF\n" +
-                "5. Check quality assessment and recommendations\n" +
-                "6. Export results using the export button\n" +
-                "7. Use the custom title bar buttons to control the window\n\n" +
-                "Highlight Colors:\n" +
-                "• Yellow: All extracted information from the summary\n\n" +
+                "4. Click 'Highlight Extracted Info' to create a highlighted PDF\n" +
+                "5. The highlighted PDF will open automatically with YELLOW highlights\n" +
+                "6. Use 'Save Highlighted PDF' to save it permanently\n\n" +
                 "The analysis extracts:\n" +
                 "• Basic paper information (title, authors, abstract, keywords)\n" +
                 "• Research components (problem, gap, questions, hypothesis)\n" +
