@@ -94,3 +94,27 @@
     -fx-border-color: #cccccc;
     -fx-border-radius: 5px;
 }
+
+/* Window control buttons hover effects */
+#minimizeButton:hover {
+    -fx-background-color: #34495e;
+}
+
+#maximizeButton:hover {
+    -fx-background-color: #34495e;
+}
+
+#closeButton:hover {
+    -fx-background-color: #e74c3c;
+}
+
+/* Custom title bar drag area */
+.title-bar {
+    -fx-background-color: #2c3e50;
+}
+
+.title-bar-text {
+    -fx-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
