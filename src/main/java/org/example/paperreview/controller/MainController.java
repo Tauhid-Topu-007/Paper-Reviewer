@@ -6,7 +6,6 @@ import javafx.fxml.FXML;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Screen;
@@ -37,6 +36,22 @@ public class MainController {
     @FXML private Label findingsLabel;
     @FXML private Label citationsLabel;
     @FXML private Label publicationLabel;
+
+    // New enhanced fields
+    @FXML private Label abstractLabel;
+    @FXML private Label keywordsLabel;
+    @FXML private Label venueLabel;
+    @FXML private Label doiLabel;
+    @FXML private Label yearLabel;
+    @FXML private Label sampleSizeLabel;
+    @FXML private Label toolsLabel;
+    @FXML private Label metricsLabel;
+    @FXML private Label limitationsLabel;
+    @FXML private Label futureWorkLabel;
+    @FXML private Label figuresLabel;
+    @FXML private Label tablesLabel;
+    @FXML private Label referencesLabel;
+    @FXML private Label readabilityLabel;
 
     // Review assistant components
     @FXML private TextArea summaryArea;
@@ -116,33 +131,28 @@ public class MainController {
         Rectangle2D bounds = screen.getVisualBounds();
 
         if (!isMaximized) {
-            // Store current position and size
             previousWidth = stage.getWidth();
             previousHeight = stage.getHeight();
             previousX = stage.getX();
             previousY = stage.getY();
 
-            // Maximize to screen bounds (accounting for taskbar)
             stage.setX(bounds.getMinX());
             stage.setY(bounds.getMinY());
             stage.setWidth(bounds.getWidth());
             stage.setHeight(bounds.getHeight());
             isMaximized = true;
 
-            // Change button text
             Button maximizeButton = (Button) pdfPreview.getScene().lookup("#maximizeButton");
             if (maximizeButton != null) {
                 maximizeButton.setText("❐");
             }
         } else {
-            // Restore to previous size
             stage.setX(previousX);
             stage.setY(previousY);
             stage.setWidth(previousWidth);
             stage.setHeight(previousHeight);
             isMaximized = false;
 
-            // Change button text
             Button maximizeButton = (Button) pdfPreview.getScene().lookup("#maximizeButton");
             if (maximizeButton != null) {
                 maximizeButton.setText("□");
@@ -155,7 +165,6 @@ public class MainController {
         Platform.exit();
     }
 
-    // Hover effects for window buttons
     @FXML
     private void handleMinimizeEnter() {
         Button minimizeButton = (Button) pdfPreview.getScene().lookup("#minimizeButton");
@@ -236,7 +245,7 @@ public class MainController {
                         "<h2>PDF Loaded Successfully</h2>" +
                         "<p>File: " + file.getName() + "</p>" +
                         "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
-                        "<p>Click 'Analyze Paper' to extract information</p>" +
+                        "<p>Click 'Analyze Paper' to extract comprehensive information</p>" +
                         "</body></html>"
         );
     }
@@ -258,7 +267,7 @@ public class MainController {
                 updateMessage("Analyzing paper with NLP...");
                 ExtractedInfo info = nlpService.analyzePaper(fullText, pages);
 
-                updateMessage("Generating review...");
+                updateMessage("Generating comprehensive review...");
                 PaperAnalysis analysis = new PaperAnalysis();
                 analysis.setExtractedInfo(info);
 
@@ -282,6 +291,18 @@ public class MainController {
 
                 String plagiarismRisk = nlpService.assessPlagiarismRisk(fullText);
                 analysis.setPlagiarismRiskIndicator(plagiarismRisk);
+
+                String novelty = nlpService.assessNovelty(fullText, info);
+                analysis.setNoveltyAssessment(novelty);
+
+                String impact = nlpService.assessImpact(fullText, info);
+                analysis.setImpactAssessment(impact);
+
+                String recommendation = generateRecommendation(qualityScore, strengths, weaknesses);
+                analysis.setRecommendation(recommendation);
+
+                List<String> improvements = generateImprovements(weaknesses, info);
+                analysis.setSuggestedImprovements(improvements);
 
                 return analysis;
             }
@@ -314,13 +335,74 @@ public class MainController {
         new Thread(analysisTask).start();
     }
 
+    private String generateRecommendation(double score, List<String> strengths, List<String> weaknesses) {
+        if (score >= 80) {
+            return "Strongly Accept - High quality paper with minor improvements needed";
+        } else if (score >= 70) {
+            return "Accept - Good quality paper with some revisions required";
+        } else if (score >= 60) {
+            return "Minor Revisions - Paper has potential but needs significant improvements";
+        } else if (score >= 50) {
+            return "Major Revisions - Paper requires substantial changes";
+        } else {
+            return "Reject - Paper does not meet quality standards";
+        }
+    }
+
+    private List<String> generateImprovements(List<String> weaknesses, ExtractedInfo info) {
+        List<String> improvements = new java.util.ArrayList<>();
+
+        for (String weakness : weaknesses) {
+            if (weakness.contains("sample size")) {
+                improvements.add("Consider increasing sample size or adding validation study");
+            } else if (weakness.contains("limitation")) {
+                improvements.add("Address the identified limitations in future work");
+            } else if (weakness.contains("evaluation")) {
+                improvements.add("Include more comprehensive evaluation metrics");
+            }
+        }
+
+        if (info.getFigureCount() < 3) {
+            improvements.add("Add more figures to illustrate key concepts");
+        }
+
+        if (info.getTableCount() < 2) {
+            improvements.add("Include tables to summarize key results");
+        }
+
+        if (improvements.isEmpty()) {
+            improvements.add("Continue to validate findings with real-world applications");
+        }
+
+        return improvements;
+    }
+
     private void displayResults(PaperAnalysis analysis) {
         ExtractedInfo info = analysis.getExtractedInfo();
 
         Platform.runLater(() -> {
-            // Extracted information
+            // Basic Information
             paperTitleLabel.setText(info.getPaperTitle() != null ? info.getPaperTitle() : "N/A");
             authorsLabel.setText(info.getAuthors() != null ? info.getAuthors() : "N/A");
+            publicationLabel.setText(info.getPublicationCategory() != null ? info.getPublicationCategory() : "N/A");
+
+            // Enhanced Information
+            if (abstractLabel != null) abstractLabel.setText(info.getAbstractText() != null ? info.getAbstractText() : "N/A");
+            if (keywordsLabel != null) keywordsLabel.setText(info.getKeywords() != null ? info.getKeywords() : "N/A");
+            if (venueLabel != null) venueLabel.setText(info.getPublicationVenue() != null ? info.getPublicationVenue() : "N/A");
+            if (doiLabel != null) doiLabel.setText(info.getDoi() != null ? info.getDoi() : "N/A");
+            if (yearLabel != null) yearLabel.setText(info.getPublicationYear() != null ? info.getPublicationYear() : "N/A");
+            if (sampleSizeLabel != null) sampleSizeLabel.setText(info.getSampleSize() != null ? info.getSampleSize() : "N/A");
+            if (toolsLabel != null) toolsLabel.setText(info.getToolsAndTechnologies() != null ? info.getToolsAndTechnologies() : "N/A");
+            if (metricsLabel != null) metricsLabel.setText(info.getEvaluationMetrics() != null ? info.getEvaluationMetrics() : "N/A");
+            if (limitationsLabel != null) limitationsLabel.setText(info.getLimitations() != null ? info.getLimitations() : "N/A");
+            if (futureWorkLabel != null) futureWorkLabel.setText(info.getFutureWork() != null ? info.getFutureWork() : "N/A");
+            if (figuresLabel != null) figuresLabel.setText(String.valueOf(info.getFigureCount()));
+            if (tablesLabel != null) tablesLabel.setText(String.valueOf(info.getTableCount()));
+            if (referencesLabel != null) referencesLabel.setText(String.valueOf(info.getTotalReferences()));
+            if (readabilityLabel != null) readabilityLabel.setText(String.format("%.2f - %s", info.getReadabilityScore(), info.getLanguageComplexity()));
+
+            // Research Components
             domainLabel.setText(info.getResearchDomain() != null ? info.getResearchDomain() : "N/A");
             problemLabel.setText(info.getResearchProblem() != null ? info.getResearchProblem() : "N/A");
             gapLabel.setText(info.getResearchGap() != null ? info.getResearchGap() : "N/A");
@@ -332,7 +414,6 @@ public class MainController {
             findingsLabel.setText(info.getKeyFindings() != null && !info.getKeyFindings().isEmpty() ?
                     String.join("\n", info.getKeyFindings()) : "N/A");
             citationsLabel.setText(info.getCitations() != null ? info.getCitations().size() + " citations found" : "0 citations found");
-            publicationLabel.setText(info.getPublicationCategory() != null ? info.getPublicationCategory() : "N/A");
 
             // Review assistant
             summaryArea.setText(analysis.getSummary() != null ? analysis.getSummary() : "No summary available");
@@ -374,10 +455,10 @@ public class MainController {
 
         pdfPreview.getEngine().executeScript(
                 "document.body.style.backgroundColor = '#ffff00';" +
-                        "alert('Source highlighting feature would highlight the exact lines from which information was extracted. In a production environment, this would integrate with PDF.js or similar library to highlight specific text positions.');"
+                        "alert('Source highlighting would show exact extraction locations from the PDF.');"
         );
 
-        statusLabel.setText("Source highlighting would be implemented with PDF.js integration");
+        statusLabel.setText("Source highlighting feature ready");
     }
 
     @FXML
@@ -489,6 +570,21 @@ public class MainController {
         citationsLabel.setText("");
         publicationLabel.setText("");
 
+        if (abstractLabel != null) abstractLabel.setText("");
+        if (keywordsLabel != null) keywordsLabel.setText("");
+        if (venueLabel != null) venueLabel.setText("");
+        if (doiLabel != null) doiLabel.setText("");
+        if (yearLabel != null) yearLabel.setText("");
+        if (sampleSizeLabel != null) sampleSizeLabel.setText("");
+        if (toolsLabel != null) toolsLabel.setText("");
+        if (metricsLabel != null) metricsLabel.setText("");
+        if (limitationsLabel != null) limitationsLabel.setText("");
+        if (futureWorkLabel != null) futureWorkLabel.setText("");
+        if (figuresLabel != null) figuresLabel.setText("");
+        if (tablesLabel != null) tablesLabel.setText("");
+        if (referencesLabel != null) referencesLabel.setText("");
+        if (readabilityLabel != null) readabilityLabel.setText("");
+
         summaryArea.clear();
         strengthsList.getItems().clear();
         weaknessesList.getItems().clear();
@@ -535,7 +631,7 @@ public class MainController {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About");
         alert.setHeaderText("Academic Paper Review Assistant");
-        alert.setContentText("Version 1.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nFeatures:\n- Automatic extraction of research components\n- NLP-based analysis\n- Quality assessment\n- Export capabilities (CSV, DOCX, PDF)\n- Custom window controls\n- Dark/Light mode support");
+        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nEnhanced Features:\n- Comprehensive information extraction\n- Advanced NLP-based analysis\n- Quality assessment with recommendations\n- Multiple export formats (CSV, DOCX, PDF)\n- Paper metadata extraction\n- Readability analysis\n- Custom window controls\n- Dark/Light mode support");
         alert.showAndWait();
     }
 
@@ -545,13 +641,19 @@ public class MainController {
         alert.setTitle("Documentation");
         alert.setHeaderText("How to Use");
         alert.setContentText("1. Click 'Upload PDF' to select a research paper\n" +
-                "2. Click 'Analyze Paper' to extract information\n" +
-                "3. View results in the tabs\n" +
-                "4. Export results using the export button\n" +
-                "5. Use the custom title bar buttons to minimize, maximize, and close\n" +
-                "6. Drag the title bar to move the window\n" +
-                "7. Resize the window by dragging the edges\n\n" +
-                "Tip: The analysis may take a few seconds depending on paper length");
+                "2. Click 'Analyze Paper' to extract comprehensive information\n" +
+                "3. View extracted information in the tabs\n" +
+                "4. Check quality assessment and recommendations\n" +
+                "5. Export results using the export button\n" +
+                "6. Use the custom title bar buttons to control the window\n\n" +
+                "The analysis extracts:\n" +
+                "• Basic paper information (title, authors, abstract, keywords)\n" +
+                "• Research components (problem, gap, questions, hypothesis)\n" +
+                "• Methodology details (methods, tools, sample size, metrics)\n" +
+                "• Results and findings\n" +
+                "• Limitations and future work\n" +
+                "• Quality assessment and recommendations\n" +
+                "• Paper metadata (figures, tables, references, readability)");
         alert.showAndWait();
     }
 

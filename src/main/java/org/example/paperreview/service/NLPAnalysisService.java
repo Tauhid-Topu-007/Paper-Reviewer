@@ -1,339 +1,665 @@
 package org.example.paperreview.service;
 
 import org.example.paperreview.model.ExtractedInfo;
-import org.example.paperreview.model.SourceHighlight;
-import org.example.paperreview.util.TextProcessor;
-import opennlp.tools.sentdetect.SentenceDetectorME;
-import opennlp.tools.sentdetect.SentenceModel;
-import opennlp.tools.tokenize.TokenizerME;
-import opennlp.tools.tokenize.TokenizerModel;
-import java.io.InputStream;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.text.BreakIterator;
 
 public class NLPAnalysisService {
-    private SentenceDetectorME sentenceDetector;
-    private TokenizerME tokenizer;
-    private TextProcessor textProcessor;
 
-    public NLPAnalysisService() {
-        try {
-            // Load NLP models
-            InputStream sentenceModelStream = getClass().getResourceAsStream("/models/en-sent.bin");
-            if (sentenceModelStream != null) {
-                SentenceModel sentenceModel = new SentenceModel(sentenceModelStream);
-                sentenceDetector = new SentenceDetectorME(sentenceModel);
-            }
+    // Domain-specific keywords
+    private static final Set<String> DOMAIN_KEYWORDS = Set.of(
+            "machine learning", "deep learning", "artificial intelligence", "neural network",
+            "data mining", "big data", "cloud computing", "internet of things",
+            "cybersecurity", "blockchain", "computer vision", "natural language processing",
+            "software engineering", "web development", "mobile computing", "distributed systems",
+            "database", "information retrieval", "human-computer interaction", "robotics"
+    );
 
-            InputStream tokenModelStream = getClass().getResourceAsStream("/models/en-token.bin");
-            if (tokenModelStream != null) {
-                TokenizerModel tokenModel = new TokenizerModel(tokenModelStream);
-                tokenizer = new TokenizerME(tokenModel);
-            }
-
-            textProcessor = new TextProcessor();
-        } catch (Exception e) {
-            System.err.println("Could not load NLP models: " + e.getMessage());
-        }
-    }
+    // Methodology keywords
+    private static final Set<String> METHODOLOGY_KEYWORDS = Set.of(
+            "qualitative", "quantitative", "mixed method", "case study", "survey",
+            "experiment", "simulation", "literature review", "systematic review",
+            "action research", "design science", "grounded theory", "ethnography"
+    );
 
     public ExtractedInfo analyzePaper(String fullText, List<String> pages) {
         ExtractedInfo info = new ExtractedInfo();
-        Map<String, List<SourceHighlight>> highlights = new HashMap<>();
 
-        // Extract title (usually first line or line with largest font)
-        info.setPaperTitle(extractTitle(fullText, pages));
+        if (fullText == null || fullText.isEmpty()) {
+            return info;
+        }
 
-        // Extract authors
+        // Extract basic information
+        info.setPaperTitle(extractTitle(fullText));
         info.setAuthors(extractAuthors(fullText));
+        info.setAbstractText(extractAbstract(fullText));
+        info.setKeywords(extractKeywords(fullText));
+        info.setPublicationYear(extractYear(fullText));
+        info.setPublicationVenue(extractVenue(fullText));
+        info.setDoi(extractDOI(fullText));
+        info.setCorrespondingAuthor(extractCorrespondingAuthor(fullText));
+        info.setAffiliations(extractAffiliations(fullText));
 
-        // Extract research domain
+        // Extract research components
         info.setResearchDomain(extractResearchDomain(fullText));
-
-        // Extract research problem
         info.setResearchProblem(extractResearchProblem(fullText));
-
-        // Extract research gap
         info.setResearchGap(extractResearchGap(fullText));
-
-        // Extract research questions
         info.setResearchQuestions(extractResearchQuestions(fullText));
-
-        // Extract hypothesis
         info.setResearchHypothesis(extractHypothesis(fullText));
+        info.setResearchObjectives(extractObjectives(fullText));
+        info.setContributions(extractContributions(fullText));
 
         // Extract methodology
         info.setMethodology(extractMethodology(fullText));
-
-        // Extract data collection methods
         info.setDataCollectionMethods(extractDataCollectionMethods(fullText));
+        info.setSampleSize(extractSampleSize(fullText));
+        info.setDataAnalysisMethods(extractDataAnalysisMethods(fullText));
+        info.setToolsAndTechnologies(extractToolsAndTechnologies(fullText));
+        info.setExperimentalSetup(extractExperimentalSetup(fullText));
+        info.setEvaluationMetrics(extractEvaluationMetrics(fullText));
 
-        // Extract key findings
+        // Extract results
         info.setKeyFindings(extractKeyFindings(fullText));
+        info.setResults(extractResults(fullText));
+        info.setStatisticalResults(extractStatisticalResults(fullText));
+        info.setPerformanceMetrics(extractPerformanceMetrics(fullText));
 
-        // Extract citations
+        // Extract analysis
+        info.setDiscussion(extractDiscussion(fullText));
+        info.setLimitations(extractLimitations(fullText));
+        info.setFutureWork(extractFutureWork(fullText));
+        info.setPracticalImplications(extractPracticalImplications(fullText));
+        info.setTheoreticalImplications(extractTheoreticalImplications(fullText));
+
+        // Extract references
         info.setCitations(extractCitations(fullText));
+        info.setTotalReferences(calculateTotalReferences(fullText));
+        info.setCitationDistribution(analyzeCitationDistribution(fullText));
+        info.setHighlyCitedPapers(extractHighlyCitedPapers(fullText));
 
-        // Extract publication category
-        info.setPublicationCategory(extractPublicationCategory(fullText));
+        // Extract metadata
+        info.setPageCount(pages != null ? pages.size() : 0);
+        info.setFigureCount(countFigures(fullText));
+        info.setTableCount(countTables(fullText));
+        info.setEquationCount(countEquations(fullText));
+        info.setAverageSentenceLength(calculateAverageSentenceLength(fullText));
+        info.setReadabilityScore(calculateReadabilityScore(fullText));
+        info.setLanguageComplexity(assessLanguageComplexity(fullText));
+        info.setKeyTerms(extractKeyTerms(fullText));
+        info.setTermFrequency(calculateTermFrequency(fullText));
 
         return info;
     }
 
-    private String extractTitle(String fullText, List<String> pages) {
-        // Look for title in first page, typically larger text or first few lines
-        if (!pages.isEmpty()) {
-            String firstPage = pages.get(0);
-            String[] lines = firstPage.split("\\n");
-            for (int i = 0; i < Math.min(10, lines.length); i++) {
-                String line = lines[i].trim();
-                if (line.length() > 20 && line.length() < 200 &&
-                        !line.toLowerCase().contains("abstract") &&
-                        !line.toLowerCase().contains("keywords")) {
-                    return line;
-                }
+    private String extractTitle(String text) {
+        // Look for common title patterns
+        String[] lines = text.split("\\n");
+        for (int i = 0; i < Math.min(10, lines.length); i++) {
+            String line = lines[i].trim();
+            if (line.length() > 10 && line.length() < 200 &&
+                    !line.toLowerCase().contains("abstract") &&
+                    !line.toLowerCase().contains("introduction")) {
+                return line;
             }
         }
         return "Title not found";
     }
 
-    private String extractAuthors(String fullText) {
-        // Look for author patterns in first few pages
-        Pattern authorPattern = Pattern.compile("(?i)(?:by|authors?)[:\\s]+([A-Z][a-z]+\\s+[A-Z][a-z]+(?:\\s*,\\s*[A-Z][a-z]+\\s+[A-Z][a-z]+)*)");
-        var matcher = authorPattern.matcher(fullText.substring(0, Math.min(5000, fullText.length())));
+    private String extractAuthors(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:author|by)[:\\s]+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*(?:,\\s*[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)*)");
+        Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
             return matcher.group(1);
         }
         return "Authors not found";
     }
 
-    private String extractResearchDomain(String fullText) {
-        String lowerText = fullText.toLowerCase();
-        String[] domains = {"machine learning", "artificial intelligence", "computer vision",
-                "natural language processing", "data mining", "software engineering",
-                "cybersecurity", "networking", "cloud computing", "big data",
-                "iot", "blockchain", "robotics", "biomedical", "physics",
-                "chemistry", "biology", "mathematics"};
-
-        for (String domain : domains) {
-            if (lowerText.contains(domain)) {
-                return domain.substring(0, 1).toUpperCase() + domain.substring(1);
-            }
+    private String extractAbstract(String text) {
+        Pattern pattern = Pattern.compile("(?i)abstract[\\s\\n]+(.+?)(?=\\n\\s*(?:introduction|keywords|1\\.|$))", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            String abstractText = matcher.group(1).trim();
+            return abstractText.length() > 500 ? abstractText.substring(0, 500) + "..." : abstractText;
         }
-        return "Domain not classified";
+        return "Abstract not found";
     }
 
-    private String extractResearchProblem(String fullText) {
-        // Look for problem statements
-        Pattern[] problemPatterns = {
-                Pattern.compile("(?i)(?:problem|challenge|issue|limitation)[\\s:]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:however|but|unfortunately)[\\s:]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:address|solve|tackle)[\\s]+(?:the|this)[\\s]+([^.]+[\\.!?])")
+    private String extractKeywords(String text) {
+        Pattern pattern = Pattern.compile("(?i)keywords?[\\s:]+(.+?)(?=\\n|$)", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Keywords not found";
+    }
+
+    private String extractYear(String text) {
+        Pattern pattern = Pattern.compile("\\b(19|20)\\d{2}\\b");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return "Year not found";
+    }
+
+    private String extractVenue(String text) {
+        String[] venues = {"IEEE", "ACM", "Springer", "Elsevier", "MDPI", "Wiley", "Taylor & Francis",
+                "CVPR", "ICCV", "ICML", "NeurIPS", "ACL", "EMNLP", "NAACL", "AAAI", "IJCAI"};
+        for (String venue : venues) {
+            if (text.contains(venue)) {
+                return venue;
+            }
+        }
+        return "Venue not specified";
+    }
+
+    private String extractDOI(String text) {
+        Pattern pattern = Pattern.compile("10\\.\\d{4,9}/[-._;()/:A-Z0-9]+", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        return "DOI not found";
+    }
+
+    private String extractCorrespondingAuthor(String text) {
+        Pattern pattern = Pattern.compile("(?i)corresponding author[\\s:]+([^\\n,]+(?:\\s+[^\\n,]+)*)");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Not specified";
+    }
+
+    private String extractAffiliations(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:affiliation|institution|university)[\\s:]+([^\\n.]+(?:\\s+[^\\n.]+)*)");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Not specified";
+    }
+
+    private String extractResearchDomain(String text) {
+        String lowerText = text.toLowerCase();
+        for (String domain : DOMAIN_KEYWORDS) {
+            if (lowerText.contains(domain)) {
+                return domain;
+            }
+        }
+        return "Not classified";
+    }
+
+    private String extractResearchProblem(String text) {
+        String[] patterns = {
+                "(?i)(?:problem|challenge|issue|gap)[\\s:]+(.+?)(?=\\.\\s+[A-Z])",
+                "(?i)(?:this paper addresses|this work addresses|we address)[\\s:]+(.+?)(?=\\.)"
         };
 
-        for (Pattern pattern : problemPatterns) {
-            var matcher = pattern.matcher(fullText);
+        for (String patternStr : patterns) {
+            Pattern pattern = Pattern.compile(patternStr, Pattern.DOTALL);
+            Matcher matcher = pattern.matcher(text);
             if (matcher.find()) {
                 String problem = matcher.group(1).trim();
-                if (problem.length() > 50 && problem.length() < 500) {
-                    return problem;
-                }
+                return problem.length() > 300 ? problem.substring(0, 300) + "..." : problem;
             }
         }
-        return "Research problem not explicitly stated";
+        return "Research problem not clearly stated";
     }
 
-    private String extractResearchGap(String fullText) {
-        // Look for gap statements
-        Pattern[] gapPatterns = {
-                Pattern.compile("(?i)(?:gap|missing|lack of|insufficient|limited research)[\\s:]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:little is known|not been studied|remains unclear)[\\s:]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(:(?:to the best of our knowledge|however)[^.]+[\\.!?])")
+    private String extractResearchGap(String text) {
+        String[] patterns = {
+                "(?i)(?:research gap|gap in the literature|limited research|little is known)[\\s:]+(.+?)(?=\\.\\s+[A-Z])",
+                "(?i)(?:however|nevertheless|despite|although)[\\s,]+(.+?)(?=\\.)"
         };
 
-        for (Pattern pattern : gapPatterns) {
-            var matcher = pattern.matcher(fullText);
+        for (String patternStr : patterns) {
+            Pattern pattern = Pattern.compile(patternStr, Pattern.DOTALL);
+            Matcher matcher = pattern.matcher(text);
             if (matcher.find()) {
-                String gap = matcher.group(1).trim();
-                if (gap.length() > 50 && gap.length() < 400) {
-                    return gap;
-                }
+                return matcher.group(1).trim();
             }
         }
-        return "Research gap not explicitly identified";
+        return "Research gap not explicitly stated";
     }
 
-    private List<String> extractResearchQuestions(String fullText) {
+    private List<String> extractResearchQuestions(String text) {
         List<String> questions = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?i)(?:RQ\\d+|research question \\d+)[\\s:]+(.+?)(?=\\.|\\n)");
+        Matcher matcher = pattern.matcher(text);
 
-        // Look for question patterns
-        Pattern questionPattern = Pattern.compile("(?i)(?:RQ\\d+|research question|question)[\\s:\\-]+([^?]+\\?)");
-        var matcher = questionPattern.matcher(fullText);
-
-        while (matcher.find() && questions.size() < 5) {
-            String question = matcher.group(1).trim();
-            if (question.length() > 20 && question.length() < 300) {
-                questions.add(question);
-            }
+        while (matcher.find()) {
+            questions.add(matcher.group(1).trim());
         }
 
         if (questions.isEmpty()) {
-            questions.add("No explicit research questions found");
+            Pattern altPattern = Pattern.compile("(?i)(?:we ask|we investigate|we explore)[\\s:]+(.+?)(?=\\.|\\?)");
+            Matcher altMatcher = altPattern.matcher(text);
+            while (altMatcher.find() && questions.size() < 3) {
+                questions.add(altMatcher.group(1).trim());
+            }
         }
-        return questions;
+
+        return questions.isEmpty() ? List.of("Research questions not explicitly stated") : questions;
     }
 
-    private String extractHypothesis(String fullText) {
-        Pattern[] hypothesisPatterns = {
-                Pattern.compile("(?i)(?:hypothesis|h\\d+)[\\s:\\-]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:we hypothesize|propose|postulate)[\\s]+that[\\s]+([^.]+[\\.!?])")
-        };
-
-        for (Pattern pattern : hypothesisPatterns) {
-            var matcher = pattern.matcher(fullText);
-            if (matcher.find()) {
-                String hypothesis = matcher.group(1).trim();
-                if (hypothesis.length() > 30 && hypothesis.length() < 300) {
-                    return hypothesis;
-                }
-            }
+    private String extractHypothesis(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:hypothesis|H\\d+)[\\s:]+(.+?)(?=\\.)");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
         }
         return "No explicit hypothesis stated";
     }
 
-    private String extractMethodology(String fullText) {
-        // Look for methodology section
-        String methodologySection = extractSection(fullText, "methodology", "results", "experiment");
-        if (!methodologySection.isEmpty()) {
-            String[] sentences = methodologySection.split("[.!?]");
-            StringBuilder methodology = new StringBuilder();
-            for (int i = 0; i < Math.min(5, sentences.length); i++) {
-                methodology.append(sentences[i].trim()).append(". ");
-            }
-            return methodology.toString();
+    private String extractObjectives(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:objective|aim|goal|purpose)[\\s:]+(.+?)(?=\\.\\s+[A-Z])");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
         }
-        return "Methodology not explicitly described";
+        return "Objectives not clearly stated";
     }
 
-    private String extractDataCollectionMethods(String fullText) {
-        Pattern[] collectionPatterns = {
-                Pattern.compile("(?i)(?:data collection|collected data|gathered data)[\\s:]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:survey|questionnaire|interview|experiment|dataset|corpus)[\\s:]+([^.]+[\\.!?])")
-        };
+    private String extractContributions(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:contribution|main contribution|key contribution)[\\s:]+(.+?)(?=\\.\\s+[A-Z])");
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Contributions not explicitly stated";
+    }
 
-        for (Pattern pattern : collectionPatterns) {
-            var matcher = pattern.matcher(fullText);
+    private String extractMethodology(String text) {
+        for (String method : METHODOLOGY_KEYWORDS) {
+            Pattern pattern = Pattern.compile("(?i)\\b" + method + "\\b.*?\\.", Pattern.DOTALL);
+            Matcher matcher = pattern.matcher(text);
             if (matcher.find()) {
-                return matcher.group(1).trim();
+                String sentence = matcher.group();
+                return sentence.length() > 200 ? sentence.substring(0, 200) + "..." : sentence;
+            }
+        }
+        return "Methodology not clearly described";
+    }
+
+    private String extractDataCollectionMethods(String text) {
+        String[] methods = {"survey", "questionnaire", "interview", "focus group", "observation",
+                "experiment", "simulation", "case study", "dataset", "data collection"};
+
+        for (String method : methods) {
+            Pattern pattern = Pattern.compile("(?i)\\b" + method + "\\b[^.]+\\.");
+            Matcher matcher = pattern.matcher(text);
+            if (matcher.find()) {
+                return matcher.group().trim();
             }
         }
         return "Data collection method not specified";
     }
 
-    private List<String> extractKeyFindings(String fullText) {
-        List<String> findings = new ArrayList<>();
+    private String extractSampleSize(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:sample size|n\\s*=\\s*|participants?|subjects?)\\s*(?:of\\s*)?(\\d+)(?:\\s*participants?)?", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "Sample size not specified";
+    }
 
-        // Look for findings in results/conclusion sections
-        String resultsSection = extractSection(fullText, "results", "conclusion", "discussion");
+    private String extractDataAnalysisMethods(String text) {
+        String[] methods = {"t-test", "ANOVA", "regression", "correlation", "chi-square",
+                "factor analysis", "cluster analysis", "thematic analysis",
+                "content analysis", "descriptive statistics"};
 
-        Pattern[] findingPatterns = {
-                Pattern.compile("(?i)(?:finding|result|observation|discovery)[\\s:\\-]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:we found|we observe|we discover)[\\s]+that[\\s]+([^.]+[\\.!?])"),
-                Pattern.compile("(?i)(?:shows|demonstrates|indicates|reveals)[\\s]+that[\\s]+([^.]+[\\.!?])")
-        };
+        for (String method : methods) {
+            if (text.toLowerCase().contains(method)) {
+                return method;
+            }
+        }
+        return "Analysis method not specified";
+    }
 
-        for (Pattern pattern : findingPatterns) {
-            var matcher = pattern.matcher(resultsSection);
-            while (matcher.find() && findings.size() < 7) {
-                String finding = matcher.group(1).trim();
-                if (finding.length() > 30 && finding.length() < 300 && !findings.contains(finding)) {
-                    findings.add(finding);
-                }
+    private String extractToolsAndTechnologies(String text) {
+        String[] tools = {"Python", "Java", "C++", "MATLAB", "R", "SPSS", "SAS", "WEKA",
+                "TensorFlow", "PyTorch", "Keras", "scikit-learn", "NLTK", "OpenCV"};
+
+        List<String> foundTools = new ArrayList<>();
+        for (String tool : tools) {
+            if (text.contains(tool)) {
+                foundTools.add(tool);
             }
         }
 
-        if (findings.isEmpty()) {
-            findings.add("Key findings not explicitly listed");
-        }
-        return findings;
+        return foundTools.isEmpty() ? "Not specified" : String.join(", ", foundTools);
     }
 
-    private List<String> extractCitations(String fullText) {
-        List<String> citations = new ArrayList<>();
+    private String extractExperimentalSetup(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:experimental setup|experiment design|experimental configuration)[\\s:]+(.+?)(?=\\.\\s+[A-Z])", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Experimental setup not described";
+    }
 
-        // Look for citation patterns
-        Pattern citationPattern = Pattern.compile("\\[\\d+\\]|\\[([A-Za-z]+\\s+\\d{4})\\]|\\(([A-Za-z]+\\s+\\d{4})\\)");
-        var matcher = citationPattern.matcher(fullText);
+    private String extractEvaluationMetrics(String text) {
+        String[] metrics = {"accuracy", "precision", "recall", "F1-score", "AUC", "ROC",
+                "MSE", "MAE", "RMSE", "R-squared", "silhouette score", "perplexity"};
 
-        Set<String> uniqueCitations = new HashSet<>();
-        while (matcher.find() && uniqueCitations.size() < 20) {
-            String citation = matcher.group();
-            uniqueCitations.add(citation);
+        List<String> foundMetrics = new ArrayList<>();
+        for (String metric : metrics) {
+            if (text.toLowerCase().contains(metric)) {
+                foundMetrics.add(metric);
+            }
         }
 
-        citations.addAll(uniqueCitations);
+        return foundMetrics.isEmpty() ? "Not specified" : String.join(", ", foundMetrics);
+    }
+
+    private List<String> extractKeyFindings(String text) {
+        List<String> findings = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?i)(?:finding|result|show|demonstrate|indicate|reveal)[\\s:]+(.+?)(?=\\.\\s+[A-Z])", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find() && findings.size() < 5) {
+            String finding = matcher.group(1).trim();
+            if (finding.length() > 20 && finding.length() < 200) {
+                findings.add(finding);
+            }
+        }
+
+        return findings.isEmpty() ? List.of("Key findings not clearly presented") : findings;
+    }
+
+    private List<String> extractResults(String text) {
+        List<String> results = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?i)(?:result|outcome)\\s+\\d+[\\s:]+(.+?)(?=\\.)", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find() && results.size() < 5) {
+            results.add(matcher.group(1).trim());
+        }
+
+        return results.isEmpty() ? List.of("Detailed results not presented") : results;
+    }
+
+    private List<String> extractStatisticalResults(String text) {
+        List<String> stats = new ArrayList<>();
+        Pattern pattern = Pattern.compile("\\b[pP]\\s*[=<]\\s*0\\.\\d+\\b|\\b[tT]\\s*=\\s*\\d+\\.\\d+\\b|\\b[Ff]\\s*=\\s*\\d+\\.\\d+\\b");
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find() && stats.size() < 10) {
+            stats.add(matcher.group());
+        }
+
+        return stats;
+    }
+
+    private List<Double> extractPerformanceMetrics(String text) {
+        List<Double> metrics = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(\\d+\\.?\\d*)%?\\s*(?:accuracy|precision|recall|f1)");
+        Matcher matcher = pattern.matcher(text.toLowerCase());
+
+        while (matcher.find() && metrics.size() < 10) {
+            try {
+                metrics.add(Double.parseDouble(matcher.group(1)));
+            } catch (NumberFormatException e) {
+                // Skip invalid numbers
+            }
+        }
+
+        return metrics;
+    }
+
+    private String extractDiscussion(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:discussion|analysis|interpretation)[\\s\\n]+(.+?)(?=\\n\\s*(?:conclusion|limitation|future work|\\d+\\.|$))", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            String discussion = matcher.group(1).trim();
+            return discussion.length() > 500 ? discussion.substring(0, 500) + "..." : discussion;
+        }
+        return "Discussion section not found";
+    }
+
+    private String extractLimitations(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:limitation|constraint|shortcoming|drawback)[\\s:]+(.+?)(?=\\.\\s+[A-Z])", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Limitations not explicitly stated";
+    }
+
+    private String extractFutureWork(String text) {
+        Pattern pattern = Pattern.compile("(?i)(?:future work|future research|future direction|further research)[\\s:]+(.+?)(?=\\.\\s+[A-Z]|$)", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "Future work not discussed";
+    }
+
+    private List<String> extractPracticalImplications(String text) {
+        List<String> implications = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?i)(?:practical implication|application|real-world impact)[\\s:]+(.+?)(?=\\.)", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find() && implications.size() < 3) {
+            implications.add(matcher.group(1).trim());
+        }
+
+        return implications;
+    }
+
+    private List<String> extractTheoreticalImplications(String text) {
+        List<String> implications = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?i)(?:theoretical implication|contribution to theory)[\\s:]+(.+?)(?=\\.)", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find() && implications.size() < 3) {
+            implications.add(matcher.group(1).trim());
+        }
+
+        return implications;
+    }
+
+    private List<String> extractCitations(String text) {
+        List<String> citations = new ArrayList<>();
+        Pattern pattern = Pattern.compile("\\[\\d+\\]|\\[[A-Za-z]+\\d{4}\\]|\\([A-Za-z]+\\s+\\d{4}\\)");
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find()) {
+            citations.add(matcher.group());
+        }
+
         return citations;
     }
 
-    private String extractPublicationCategory(String fullText) {
-        String lowerText = fullText.toLowerCase();
-        if (lowerText.contains("elsevier")) return "Elsevier";
-        if (lowerText.contains("springer")) return "Springer";
-        if (lowerText.contains("ieee")) return "IEEE";
-        if (lowerText.contains("acm")) return "ACM";
-        if (lowerText.contains("scopus")) {
-            if (lowerText.contains("q1")) return "Scopus Q1";
-            if (lowerText.contains("q2")) return "Scopus Q2";
-            if (lowerText.contains("q3")) return "Scopus Q3";
-            if (lowerText.contains("q4")) return "Scopus Q4";
-            return "Scopus (Unspecified)";
+    private int calculateTotalReferences(String text) {
+        Pattern pattern = Pattern.compile("(?:references|bibliography)[\\s\\n]+(.+?)(?=\\n\\s*(?:appendix|$))", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(text.toLowerCase());
+
+        if (matcher.find()) {
+            String refSection = matcher.group(1);
+            String[] lines = refSection.split("\\n");
+            int count = 0;
+            for (String line : lines) {
+                if (line.trim().matches("^\\[?\\d+\\]?\\s+.*")) {
+                    count++;
+                }
+            }
+            return count > 0 ? count : lines.length;
         }
-        return "Not specified";
+        return 0;
     }
 
-    private String extractSection(String fullText, String sectionName, String endMarker, String alternativeMarker) {
-        String lowerText = fullText.toLowerCase();
-        String lowerSection = sectionName.toLowerCase();
+    private Map<String, Integer> analyzeCitationDistribution(String text) {
+        Map<String, Integer> distribution = new HashMap<>();
+        String[] years = {"2020", "2021", "2022", "2023", "2024"};
 
-        int startIndex = lowerText.indexOf(lowerSection);
-        if (startIndex == -1) {
-            return "";
+        for (String year : years) {
+            Pattern pattern = Pattern.compile(year);
+            Matcher matcher = pattern.matcher(text);
+            int count = 0;
+            while (matcher.find()) {
+                count++;
+            }
+            if (count > 0) {
+                distribution.put(year, count);
+            }
         }
 
-        int endIndex = lowerText.indexOf(endMarker.toLowerCase(), startIndex + lowerSection.length());
-        if (endIndex == -1 && alternativeMarker != null) {
-            endIndex = lowerText.indexOf(alternativeMarker.toLowerCase(), startIndex + lowerSection.length());
-        }
-
-        if (endIndex == -1) {
-            endIndex = Math.min(startIndex + 3000, fullText.length());
-        }
-
-        return fullText.substring(startIndex, endIndex);
+        return distribution;
     }
 
+    private List<String> extractHighlyCitedPapers(String text) {
+        List<String> papers = new ArrayList<>();
+        Pattern pattern = Pattern.compile("(?:cited by|references?)\\s+(\\d+)\\s*(?:papers?|works?)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(text);
+
+        while (matcher.find() && papers.size() < 5) {
+            papers.add(matcher.group());
+        }
+
+        return papers;
+    }
+
+    private int countFigures(String text) {
+        Pattern pattern = Pattern.compile("(?i)figure\\s+\\d+");
+        Matcher matcher = pattern.matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    private int countTables(String text) {
+        Pattern pattern = Pattern.compile("(?i)table\\s+\\d+");
+        Matcher matcher = pattern.matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    private int countEquations(String text) {
+        Pattern pattern = Pattern.compile("(?i)equation\\s+\\(?\\d+\\)?");
+        Matcher matcher = pattern.matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    private double calculateAverageSentenceLength(String text) {
+        String[] sentences = text.split("[.!?]+");
+        if (sentences.length == 0) return 0;
+
+        int totalWords = 0;
+        for (String sentence : sentences) {
+            totalWords += sentence.trim().split("\\s+").length;
+        }
+
+        return (double) totalWords / sentences.length;
+    }
+
+    private double calculateReadabilityScore(String text) {
+        // Simplified Flesch Reading Ease calculation
+        String[] sentences = text.split("[.!?]+");
+        String[] words = text.split("\\s+");
+        String[] syllables = text.split("[aeiouAEIOU]+");
+
+        if (sentences.length == 0 || words.length == 0) return 0;
+
+        double avgSentenceLength = (double) words.length / sentences.length;
+        double avgSyllablesPerWord = (double) syllables.length / words.length;
+
+        // Flesch Reading Ease formula
+        double score = 206.835 - (1.015 * avgSentenceLength) - (84.6 * avgSyllablesPerWord);
+        return Math.max(0, Math.min(100, score));
+    }
+
+    private String assessLanguageComplexity(String text) {
+        double avgSentenceLength = calculateAverageSentenceLength(text);
+        double readability = calculateReadabilityScore(text);
+
+        if (avgSentenceLength > 25 && readability < 30) {
+            return "Very Complex (Expert level)";
+        } else if (avgSentenceLength > 20 && readability < 50) {
+            return "Complex (Graduate level)";
+        } else if (avgSentenceLength > 15 && readability < 70) {
+            return "Moderate (Undergraduate level)";
+        } else {
+            return "Simple (General audience)";
+        }
+    }
+
+    private List<String> extractKeyTerms(String text) {
+        List<String> keyTerms = new ArrayList<>();
+        String lowerText = text.toLowerCase();
+
+        // Technical terms to look for
+        String[] technicalTerms = {
+                "algorithm", "framework", "model", "system", "approach", "method", "technique",
+                "analysis", "evaluation", "validation", "optimization", "classification",
+                "regression", "clustering", "prediction", "detection", "recognition"
+        };
+
+        for (String term : technicalTerms) {
+            if (lowerText.contains(term) && !keyTerms.contains(term)) {
+                keyTerms.add(term);
+            }
+        }
+
+        return keyTerms.size() > 10 ? keyTerms.subList(0, 10) : keyTerms;
+    }
+
+    private Map<String, Integer> calculateTermFrequency(String text) {
+        Map<String, Integer> freq = new HashMap<>();
+        String[] words = text.toLowerCase().split("\\s+");
+
+        // Common stop words to ignore
+        Set<String> stopWords = Set.of("the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+                "of", "with", "by", "is", "are", "was", "were", "be", "been", "being");
+
+        for (String word : words) {
+            word = word.replaceAll("[^a-z]", "");
+            if (word.length() > 3 && !stopWords.contains(word)) {
+                freq.put(word, freq.getOrDefault(word, 0) + 1);
+            }
+        }
+
+        // Keep only top 30 terms
+        return freq.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(30)
+                .collect(HashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), HashMap::putAll);
+    }
+
+    // Existing methods from your original service...
     public String generateSummary(String fullText, ExtractedInfo info) {
         StringBuilder summary = new StringBuilder();
+        summary.append("This paper presents research in the field of ").append(info.getResearchDomain()).append(". ");
+        summary.append("The study addresses ").append(info.getResearchProblem()).append(". ");
 
-        summary.append("This research paper titled \"").append(info.getPaperTitle()).append("\" ");
-
-        if (!info.getAuthors().equals("Authors not found")) {
-            summary.append("by ").append(info.getAuthors()).append(" ");
+        if (info.getResearchGap() != null && !info.getResearchGap().equals("Research gap not explicitly stated")) {
+            summary.append("It addresses the research gap: ").append(info.getResearchGap()).append(". ");
         }
 
-        summary.append("addresses ").append(info.getResearchProblem().toLowerCase()).append(" ");
+        summary.append("The methodology employs ").append(info.getMethodology()).append(". ");
 
-        if (!info.getResearchGap().equals("Research gap not explicitly identified")) {
-            summary.append("The research gap identified is: ").append(info.getResearchGap()).append(" ");
-        }
-
-        summary.append("The study employs ").append(info.getMethodology().toLowerCase()).append(" ");
-
-        if (!info.getKeyFindings().isEmpty() && !info.getKeyFindings().get(0).equals("Key findings not explicitly listed")) {
-            summary.append("Key findings include: ").append(info.getKeyFindings().get(0));
-            for (int i = 1; i < Math.min(3, info.getKeyFindings().size()); i++) {
-                summary.append("; ").append(info.getKeyFindings().get(i));
+        List<String> keyFindings = info.getKeyFindings();
+        if (!keyFindings.isEmpty() && !keyFindings.get(0).equals("Key findings not clearly presented")) {
+            summary.append("Key findings include: ");
+            for (int i = 0; i < Math.min(3, keyFindings.size()); i++) {
+                summary.append(keyFindings.get(i));
+                if (i < Math.min(3, keyFindings.size()) - 1) summary.append("; ");
             }
+            summary.append(". ");
         }
 
         return summary.toString();
@@ -342,31 +668,44 @@ public class NLPAnalysisService {
     public List<String> identifyStrengths(String fullText, ExtractedInfo info) {
         List<String> strengths = new ArrayList<>();
 
-        // Look for strength indicators
-        String lowerText = fullText.toLowerCase();
-
-        if (info.getMethodology() != null && !info.getMethodology().contains("not explicitly")) {
-            strengths.add("Clear and well-defined methodology section");
+        // Check for various strength indicators
+        if (info.getSampleSize() != null && !info.getSampleSize().equals("Sample size not specified")) {
+            try {
+                int sampleSize = Integer.parseInt(info.getSampleSize());
+                if (sampleSize > 100) {
+                    strengths.add("Large sample size (" + sampleSize + " participants)");
+                }
+            } catch (NumberFormatException e) {
+                // Not a number, skip
+            }
         }
 
-        if (info.getKeyFindings().size() >= 3) {
-            strengths.add("Multiple significant findings presented");
+        if (!info.getEvaluationMetrics().equals("Not specified")) {
+            strengths.add("Comprehensive evaluation using " + info.getEvaluationMetrics());
         }
 
-        if (info.getCitations().size() > 20) {
-            strengths.add("Comprehensive literature review with extensive citations");
+        if (!info.getToolsAndTechnologies().equals("Not specified")) {
+            strengths.add("Uses modern tools and technologies: " + info.getToolsAndTechnologies());
         }
 
-        if (lowerText.contains("novel") || lowerText.contains("innovative")) {
-            strengths.add("Novel/Innovative approach presented");
+        if (!info.getStatisticalResults().isEmpty()) {
+            strengths.add("Provides detailed statistical analysis");
         }
 
-        if (lowerText.contains("comprehensive") || lowerText.contains("extensive")) {
-            strengths.add("Comprehensive analysis performed");
+        if (info.getFigureCount() > 5) {
+            strengths.add("Well-illustrated with " + info.getFigureCount() + " figures");
+        }
+
+        if (info.getTableCount() > 3) {
+            strengths.add("Clear presentation of data through " + info.getTableCount() + " tables");
+        }
+
+        if (info.getTotalReferences() > 50) {
+            strengths.add("Comprehensive literature review with " + info.getTotalReferences() + " references");
         }
 
         if (strengths.isEmpty()) {
-            strengths.add("Basic research structure followed");
+            strengths.add("Strengths not clearly identified in the paper");
         }
 
         return strengths;
@@ -375,33 +714,43 @@ public class NLPAnalysisService {
     public List<String> identifyWeaknesses(String fullText, ExtractedInfo info) {
         List<String> weaknesses = new ArrayList<>();
 
-        // Look for weakness indicators
-        if (info.getMethodology().contains("not explicitly")) {
-            weaknesses.add("Methodology not clearly described");
-        }
-
-        if (info.getDataCollectionMethods().contains("not specified")) {
-            weaknesses.add("Data collection method not specified");
-        }
-
-        if (info.getKeyFindings().isEmpty() || info.getKeyFindings().get(0).equals("Key findings not explicitly listed")) {
-            weaknesses.add("Key findings not clearly articulated");
-        }
-
-        String lowerText = fullText.toLowerCase();
-        if (lowerText.contains("limitation") || lowerText.contains("future work")) {
-            Pattern limitPattern = Pattern.compile("(?i)(?:limitation|future work)[^.]+[.!?]");
-            var matcher = limitPattern.matcher(fullText);
-            if (matcher.find()) {
-                String limitation = matcher.group();
-                if (limitation.length() < 200) {
-                    weaknesses.add(limitation);
+        if (info.getSampleSize().equals("Sample size not specified")) {
+            weaknesses.add("Sample size not clearly stated");
+        } else if (info.getSampleSize().matches("\\d+")) {
+            try {
+                int sampleSize = Integer.parseInt(info.getSampleSize());
+                if (sampleSize < 30) {
+                    weaknesses.add("Small sample size (" + sampleSize + " participants) may limit generalizability");
                 }
+            } catch (NumberFormatException e) {
+                // Not a number
             }
         }
 
+        if (info.getLimitations() != null && !info.getLimitations().equals("Limitations not explicitly stated")) {
+            weaknesses.add("Acknowledges limitations: " + info.getLimitations());
+        } else {
+            weaknesses.add("Limitations not explicitly discussed");
+        }
+
+        if (info.getEvaluationMetrics().equals("Not specified")) {
+            weaknesses.add("Evaluation metrics not clearly defined");
+        }
+
+        if (info.getDataCollectionMethods().equals("Data collection method not specified")) {
+            weaknesses.add("Data collection method not clearly described");
+        }
+
+        if (info.getStatisticalResults().isEmpty()) {
+            weaknesses.add("Limited statistical analysis presented");
+        }
+
+        if (info.getTotalReferences() < 20) {
+            weaknesses.add("Limited literature review (" + info.getTotalReferences() + " references)");
+        }
+
         if (weaknesses.isEmpty()) {
-            weaknesses.add("No explicit limitations mentioned in the paper");
+            weaknesses.add("Weaknesses not clearly identified in the paper");
         }
 
         return weaknesses;
@@ -410,81 +759,144 @@ public class NLPAnalysisService {
     public List<String> identifyFutureScope(String fullText, ExtractedInfo info) {
         List<String> futureScope = new ArrayList<>();
 
-        Pattern futurePattern = Pattern.compile("(?i)(?:future work|future research|further study|future direction)[^.]+[.!?]");
-        var matcher = futurePattern.matcher(fullText);
-
-        while (matcher.find() && futureScope.size() < 5) {
-            String scope = matcher.group().trim();
-            if (scope.length() > 30 && scope.length() < 300) {
-                futureScope.add(scope);
-            }
+        if (info.getFutureWork() != null && !info.getFutureWork().equals("Future work not discussed")) {
+            futureScope.add(info.getFutureWork());
+        } else {
+            futureScope.add("Future research directions not explicitly discussed");
         }
 
-        if (futureScope.isEmpty()) {
-            futureScope.add("Future research directions not specified");
+        // Suggest additional future directions based on limitations
+        if (info.getLimitations() != null && !info.getLimitations().equals("Limitations not explicitly stated")) {
+            futureScope.add("Address limitations: " + info.getLimitations());
         }
 
         return futureScope;
     }
 
     public double calculateQualityScore(ExtractedInfo info, List<String> strengths, List<String> weaknesses) {
-        double score = 70.0; // Base score
+        double score = 50.0; // Base score
 
-        // Adjust based on extracted info completeness
-        if (!info.getPaperTitle().contains("not found")) score += 2;
-        if (!info.getAuthors().contains("not found")) score += 2;
-        if (!info.getResearchProblem().contains("not")) score += 5;
-        if (!info.getResearchGap().contains("not")) score += 5;
-        if (!info.getResearchQuestions().get(0).contains("not")) score += 3;
-        if (!info.getMethodology().contains("not")) score += 5;
-        if (info.getKeyFindings().size() >= 3 && !info.getKeyFindings().get(0).contains("not")) score += 5;
-        if (info.getCitations().size() > 15) score += 3;
+        // Add points for strengths
+        score += strengths.size() * 5;
 
-        // Adjust based on strengths/weaknesses
-        score += strengths.size() * 2;
-        score -= weaknesses.size() * 1.5;
+        // Subtract points for weaknesses
+        score -= weaknesses.size() * 3;
 
+        // Add points for methodology clarity
+        if (!info.getMethodology().equals("Methodology not clearly described")) {
+            score += 10;
+        }
+
+        // Add points for results presentation
+        if (!info.getKeyFindings().isEmpty() && !info.getKeyFindings().get(0).equals("Key findings not clearly presented")) {
+            score += 10;
+        }
+
+        // Add points for references
+        if (info.getTotalReferences() > 30) {
+            score += 5;
+        } else if (info.getTotalReferences() > 50) {
+            score += 10;
+        }
+
+        // Add points for figures and tables
+        if (info.getFigureCount() + info.getTableCount() > 5) {
+            score += 5;
+        }
+
+        // Cap at 100
         return Math.min(100, Math.max(0, score));
     }
 
     public String assessWritingQuality(String fullText) {
-        String[] sentences = fullText.split("[.!?]");
-        double avgSentenceLength = 0;
-        for (String sentence : sentences) {
-            avgSentenceLength += sentence.trim().split("\\s+").length;
+        double readability = calculateReadabilityScore(fullText);
+        double avgSentenceLength = calculateAverageSentenceLength(fullText);
+
+        StringBuilder assessment = new StringBuilder();
+
+        if (readability >= 60) {
+            assessment.append("Writing is clear and accessible. ");
+        } else if (readability >= 40) {
+            assessment.append("Writing is moderately complex but readable. ");
+        } else {
+            assessment.append("Writing is highly complex and may be difficult for some readers. ");
         }
-        avgSentenceLength /= sentences.length;
 
         if (avgSentenceLength < 15) {
-            return "Good: Clear and concise writing style with short sentences";
+            assessment.append("Sentences are concise and easy to follow.");
         } else if (avgSentenceLength < 25) {
-            return "Satisfactory: Moderate sentence length, generally readable";
+            assessment.append("Sentence length is appropriate for academic writing.");
         } else {
-            return "Needs improvement: Sentences are too long, consider breaking them down";
+            assessment.append("Sentences are quite long and could be broken down for better readability.");
         }
+
+        return assessment.toString();
     }
 
     public String assessPlagiarismRisk(String fullText) {
-        // This is a heuristic assessment, not actual plagiarism detection
+        // This is a simplified check - in production, you'd use actual plagiarism detection APIs
         String lowerText = fullText.toLowerCase();
 
-        int suspiciousPatterns = 0;
+        // Check for common academic phrases that might indicate proper citation
+        boolean hasCitations = lowerText.contains("et al") || lowerText.contains("according to") ||
+                lowerText.contains("as stated in") || lowerText.contains("reference");
 
-        // Check for overly common phrases
-        String[] commonPhrases = {"et al", "as shown in", "previous studies have shown",
-                "it is well known that", "according to"};
-        for (String phrase : commonPhrases) {
-            if (lowerText.contains(phrase)) {
-                suspiciousPatterns++;
+        if (!hasCitations) {
+            return "High risk - Limited citations detected";
+        } else if (lowerText.contains("cited by") || lowerText.contains("references")) {
+            return "Low risk - Proper citation practice observed";
+        } else {
+            return "Medium risk - Some citations present but limited";
+        }
+    }
+
+    public String assessNovelty(String fullText, ExtractedInfo info) {
+        StringBuilder novelty = new StringBuilder();
+
+        if (info.getResearchGap() != null && !info.getResearchGap().equals("Research gap not explicitly stated")) {
+            novelty.append("Paper addresses a research gap. ");
+        }
+
+        if (info.getContributions() != null && !info.getContributions().equals("Contributions not explicitly stated")) {
+            novelty.append("Contributions are clearly articulated. ");
+        }
+
+        String lowerText = fullText.toLowerCase();
+        if (lowerText.contains("novel") || lowerText.contains("first") || lowerText.contains("state-of-the-art")) {
+            novelty.append("Claims novelty/innovation in the research.");
+        } else {
+            novelty.append("Novelty not strongly emphasized.");
+        }
+
+        return novelty.toString();
+    }
+
+    public String assessImpact(String fullText, ExtractedInfo info) {
+        StringBuilder impact = new StringBuilder();
+
+        if (!info.getPracticalImplications().isEmpty()) {
+            impact.append("Has practical implications. ");
+        }
+
+        if (!info.getTheoreticalImplications().isEmpty()) {
+            impact.append("Contributes to theoretical understanding. ");
+        }
+
+        if (info.getPerformanceMetrics() != null && !info.getPerformanceMetrics().isEmpty()) {
+            double bestMetric = info.getPerformanceMetrics().stream().max(Double::compare).orElse(0.0);
+            if (bestMetric > 90) {
+                impact.append("Excellent performance metrics (>90%). ");
+            } else if (bestMetric > 80) {
+                impact.append("Good performance metrics (>80%). ");
+            } else if (bestMetric > 70) {
+                impact.append("Moderate performance metrics. ");
             }
         }
 
-        if (suspiciousPatterns > 10) {
-            return "Medium Risk: Contains many common academic phrases that might indicate template-based writing";
-        } else if (suspiciousPatterns > 5) {
-            return "Low Risk: Generally original writing with standard academic language";
-        } else {
-            return "Low Risk: Appears to be original work";
+        if (impact.length() == 0) {
+            impact.append("Impact not clearly demonstrated.");
         }
+
+        return impact.toString();
     }
 }
