@@ -8,20 +8,13 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.paperreview.controller.MainController">
 
-    <!-- Custom Title Bar -->
     <top>
         <VBox>
             <HBox style="-fx-background-color: #2c3e50; -fx-padding: 5 10 5 10;" spacing="10" alignment="CENTER_LEFT">
                 <Text text="📄 Academic Paper Review Assistant" style="-fx-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;"/>
                 <Region HBox.hgrow="ALWAYS"/>
-
-                <!-- Minimize Button -->
                 <Button fx:id="minimizeButton" text="─" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleMinimize"/>
-
-                <!-- Maximize/Restore Button -->
                 <Button fx:id="maximizeButton" text="□" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleMaximize"/>
-
-                <!-- Close Button -->
                 <Button fx:id="closeButton" text="✕" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleClose"/>
             </HBox>
 
@@ -72,16 +65,15 @@
     <center>
         <SplitPane dividerPositions="0.35" BorderPane.alignment="CENTER">
             <items>
-                <!-- Left Panel - PDF Preview -->
                 <VBox spacing="10">
                     <padding>
                         <Insets top="10" right="10" bottom="10" left="10"/>
                     </padding>
                     <Label text="PDF Preview" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
                     <WebView fx:id="pdfPreview" VBox.vgrow="ALWAYS" prefHeight="400"/>
+                    <Label text="💡 Tip: Click 'Open Highlighted PDF' to view the highlighted PDF in your default viewer" style="-fx-text-fill: #666; -fx-font-size: 11px;"/>
                 </VBox>
 
-                <!-- Right Panel - Analysis Results -->
                 <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
                     <Tab text="Extracted Information">
                         <ScrollPane fitToWidth="true">

@@ -248,32 +248,24 @@ public class MainController {
 
     private void loadPDFPreview(File file) {
         try {
-            String pdfDataUrl = "file:///" + file.getAbsolutePath().replace("\\", "/");
-            java.net.URL viewerUrl = getClass().getResource("/org/example/paperreview/pdf-viewer.html");
-            if (viewerUrl != null) {
-                pdfPreview.getEngine().load(viewerUrl.toExternalForm());
-                pdfViewerLoaded = false;
-                pdfPreview.getEngine().getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
-                    if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
-                        pdfViewerLoaded = true;
-                        String script = String.format(
-                                "if (typeof loadPDFFromJava !== 'undefined') { loadPDFFromJava('%s'); }",
-                                pdfDataUrl
-                        );
-                        Platform.runLater(() -> pdfPreview.getEngine().executeScript(script));
-                    }
-                });
-            } else {
-                pdfPreview.getEngine().loadContent(
-                        "<html><body style='font-family: Arial; padding: 20px;'>" +
-                                "<h2>PDF Loaded Successfully</h2>" +
-                                "<p>File: " + file.getName() + "</p>" +
-                                "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
-                                "<p style='color: green;'>Click 'Highlight Extracted Info' to create a highlighted PDF</p>" +
-                                "</body></html>"
-                );
-                pdfViewerLoaded = true;
-            }
+            // Simple HTML viewer that works reliably
+            String htmlContent = "<html><body style='font-family: Arial; padding: 20px; text-align: center;'>" +
+                    "<h2 style='color: #2c3e50;'>📄 PDF Loaded Successfully</h2>" +
+                    "<p><strong>File:</strong> " + file.getName() + "</p>" +
+                    "<p><strong>Pages:</strong> " + pdfParser.getNumberOfPages() + "</p>" +
+                    "<div style='background-color: #e8f5e9; padding: 15px; border-radius: 8px; margin-top: 20px;'>" +
+                    "<p style='color: #2e7d32;'>✓ PDF is ready for analysis</p>" +
+                    "<p>Click <strong>'Analyze Paper'</strong> to extract information</p>" +
+                    "<p>Click <strong>'Highlight Extracted Info'</strong> to create a highlighted PDF</p>" +
+                    "</div>" +
+                    "<hr style='margin: 20px;'>" +
+                    "<p style='color: #666;'>💡 <strong>Tip:</strong> For best viewing experience, use the <strong>'Open Highlighted PDF'</strong> button to open in your default PDF viewer.</p>" +
+                    "</body></html>";
+
+            pdfPreview.getEngine().loadContent(htmlContent);
+            pdfViewerLoaded = true;
+            statusLabel.setText("PDF loaded: " + file.getName());
+
         } catch (Exception e) {
             e.printStackTrace();
             pdfPreview.getEngine().loadContent(
@@ -281,6 +273,7 @@ public class MainController {
                             "<h2>PDF Loaded</h2>" +
                             "<p>File: " + file.getName() + "</p>" +
                             "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
+                            "<p>Click 'Open Highlighted PDF' to view the PDF with highlights</p>" +
                             "</body></html>"
             );
             pdfViewerLoaded = true;
@@ -310,19 +303,30 @@ public class MainController {
                 ExtractedInfo info = currentAnalysis.getExtractedInfo();
                 Map<String, String> extractedInfoMap = new LinkedHashMap<>();
 
-                // Add all extracted information for highlighting
+                // Add ALL extracted information for highlighting
                 addToHighlightMap(extractedInfoMap, "Paper Title", info.getPaperTitle());
                 addToHighlightMap(extractedInfoMap, "Authors", info.getAuthors());
                 addToHighlightMap(extractedInfoMap, "Abstract", info.getAbstractText());
+                addToHighlightMap(extractedInfoMap, "Keywords", info.getKeywords());
                 addToHighlightMap(extractedInfoMap, "Research Domain", info.getResearchDomain());
                 addToHighlightMap(extractedInfoMap, "Research Problem", info.getResearchProblem());
                 addToHighlightMap(extractedInfoMap, "Research Gap", info.getResearchGap());
                 addToHighlightMap(extractedInfoMap, "Methodology", info.getMethodology());
                 addToHighlightMap(extractedInfoMap, "Executive Summary", currentAnalysis.getSummary());
 
-                // Add key findings
+                // Add ALL research questions
+                if (info.getResearchQuestions() != null) {
+                    for (int i = 0; i < info.getResearchQuestions().size(); i++) {
+                        String question = info.getResearchQuestions().get(i);
+                        if (isValidForHighlight(question)) {
+                            extractedInfoMap.put("Research Question " + (i + 1), question);
+                        }
+                    }
+                }
+
+                // Add ALL key findings
                 if (info.getKeyFindings() != null) {
-                    for (int i = 0; i < Math.min(5, info.getKeyFindings().size()); i++) {
+                    for (int i = 0; i < info.getKeyFindings().size(); i++) {
                         String finding = info.getKeyFindings().get(i);
                         if (isValidForHighlight(finding)) {
                             extractedInfoMap.put("Key Finding " + (i + 1), finding);
@@ -330,21 +334,54 @@ public class MainController {
                     }
                 }
 
+                // Add hypothesis
+                addToHighlightMap(extractedInfoMap, "Hypothesis", info.getResearchHypothesis());
+
+                // Add data collection methods
+                addToHighlightMap(extractedInfoMap, "Data Collection", info.getDataCollectionMethods());
+
+                // Add tools and technologies
+                addToHighlightMap(extractedInfoMap, "Tools Used", info.getToolsAndTechnologies());
+
+                // Add evaluation metrics
+                addToHighlightMap(extractedInfoMap, "Evaluation Metrics", info.getEvaluationMetrics());
+
                 // Add limitations
-                if (isValidForHighlight(info.getLimitations())) {
-                    extractedInfoMap.put("Limitations", info.getLimitations());
-                }
+                addToHighlightMap(extractedInfoMap, "Limitations", info.getLimitations());
 
                 // Add future work
-                if (isValidForHighlight(info.getFutureWork())) {
-                    extractedInfoMap.put("Future Work", info.getFutureWork());
+                addToHighlightMap(extractedInfoMap, "Future Work", info.getFutureWork());
+
+                // Add practical implications
+                if (info.getPracticalImplications() != null) {
+                    for (int i = 0; i < info.getPracticalImplications().size(); i++) {
+                        String implication = info.getPracticalImplications().get(i);
+                        if (isValidForHighlight(implication)) {
+                            extractedInfoMap.put("Practical Implication " + (i + 1), implication);
+                        }
+                    }
                 }
 
-                updateMessage("Highlighting " + extractedInfoMap.size() + " items in PDF...");
+                // Add theoretical implications
+                if (info.getTheoreticalImplications() != null) {
+                    for (int i = 0; i < info.getTheoreticalImplications().size(); i++) {
+                        String implication = info.getTheoreticalImplications().get(i);
+                        if (isValidForHighlight(implication)) {
+                            extractedInfoMap.put("Theoretical Implication " + (i + 1), implication);
+                        }
+                    }
+                }
 
-                // Create highlighted PDF using PDFBox
+                updateMessage("Searching " + extractedInfoMap.size() + " items in PDF...");
+
+                System.out.println("\n========== STARTING HIGHLIGHT PROCESS ==========");
+                System.out.println("Total items to search: " + extractedInfoMap.size());
+
+                // Create highlighted PDF
                 PDFHighlighterService highlighter = new PDFHighlighterService();
                 File highlightedFile = highlighter.createHighlightedPDF(currentPDFFile, extractedInfoMap);
+
+                System.out.println("========== HIGHLIGHT PROCESS COMPLETED ==========\n");
 
                 return highlightedFile;
             }
@@ -360,23 +397,17 @@ public class MainController {
             statusLabel.setText("Highlighted PDF created successfully!");
             progressIndicator.setVisible(false);
 
-            // Auto-open the highlighted PDF
             try {
                 java.awt.Desktop.getDesktop().open(highlightedPDFFile);
                 showInfo("Highlight Complete",
                         "✓ PDF has been highlighted successfully!\n\n" +
-                                "• All extracted information is highlighted in YELLOW color\n" +
-                                "• The highlighted PDF has been opened automatically\n" +
-                                "• You can save it using File menu\n\n" +
-                                "Highlighted items:\n" +
-                                "• Paper Title, Authors, Abstract\n" +
-                                "• Research Problem, Research Gap\n" +
-                                "• Methodology, Key Findings\n" +
-                                "• Limitations, Future Work\n" +
-                                "• Executive Summary");
+                                "All extracted information has been highlighted in YELLOW color.\n\n" +
+                                "The highlighted PDF has been opened automatically.\n\n" +
+                                "Check the console for detailed search results.");
             } catch (IOException ex) {
                 showInfo("Highlight Complete",
-                        "✓ PDF has been highlighted successfully!\n\nFile saved at:\n" + highlightedPDFFile.getAbsolutePath());
+                        "✓ PDF has been highlighted successfully!\n\nFile saved at:\n" +
+                                highlightedPDFFile.getAbsolutePath());
             }
         });
 
@@ -390,6 +421,28 @@ public class MainController {
         });
 
         new Thread(highlightTask).start();
+    }
+
+    private void addToHighlightMap(Map<String, String> map, String key, String value) {
+        if (isValidForHighlight(value)) {
+            String shortValue = value.length() > 500 ? value.substring(0, 500) : value;
+            map.put(key, shortValue);
+            System.out.println("Added to highlight map: " + key + " (" + shortValue.length() + " chars)");
+        } else {
+            System.out.println("Skipped (invalid): " + key);
+        }
+    }
+
+    private boolean isValidForHighlight(String text) {
+        if (text == null || text.isEmpty()) return false;
+        String[] invalidValues = {"N/A", "Not found", "Not available", "Not clearly stated",
+                "Not explicitly stated", "Not clearly described", "Not specified",
+                "No summary available", "Abstract not available", "Keywords not found",
+                "Authors not found", "Title not found", "", "null"};
+        for (String invalid : invalidValues) {
+            if (text.equals(invalid)) return false;
+        }
+        return text.length() > 15;
     }
 
     @FXML
@@ -431,25 +484,6 @@ public class MainController {
                 showError("Save Failed", "Could not save file: " + e.getMessage());
             }
         }
-    }
-
-    private void addToHighlightMap(Map<String, String> map, String key, String value) {
-        if (isValidForHighlight(value)) {
-            String shortValue = value.length() > 500 ? value.substring(0, 500) : value;
-            map.put(key, shortValue);
-        }
-    }
-
-    private boolean isValidForHighlight(String text) {
-        if (text == null || text.isEmpty()) return false;
-        String[] invalidValues = {"N/A", "Not found", "Not available", "Not clearly stated",
-                "Not explicitly stated", "Not clearly described", "Not specified",
-                "No summary available", "Abstract not available", "Keywords not found",
-                "Authors not found", "Title not found"};
-        for (String invalid : invalidValues) {
-            if (text.equals(invalid)) return false;
-        }
-        return text.length() > 20;
     }
 
     @FXML

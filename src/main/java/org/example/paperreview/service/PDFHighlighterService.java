@@ -8,7 +8,6 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
-import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -16,100 +15,108 @@ import java.util.*;
 public class PDFHighlighterService {
 
     public File createHighlightedPDF(File inputPdf, Map<String, String> extractedInfo) throws IOException {
-        // Create output file in temp directory
         String outputPath = System.getProperty("java.io.tmpdir") +
                 File.separator + "highlighted_" + System.currentTimeMillis() + ".pdf";
         File outputFile = new File(outputPath);
 
-        // Load the original PDF using Loader.loadPDF() for PDFBox 3.x
         try (PDDocument document = Loader.loadPDF(inputPdf)) {
 
-            System.out.println("PDF loaded. Pages: " + document.getNumberOfPages());
-            System.out.println("Searching for " + extractedInfo.size() + " items to highlight...");
+            System.out.println("=== PDF Highlighting Started ===");
+            System.out.println("Total items to highlight: " + extractedInfo.size());
 
-            int highlightCount = 0;
+            Map<Integer, List<HighlightRect>> allHighlights = new HashMap<>();
+            int totalMatches = 0;
             int itemNumber = 1;
 
-            // For each extracted information, search and highlight
             for (Map.Entry<String, String> entry : extractedInfo.entrySet()) {
                 String category = entry.getKey();
                 String searchText = entry.getValue();
 
-                if (searchText != null && !searchText.isEmpty() && searchText.length() > 15) {
-                    System.out.println("(" + itemNumber + "/" + extractedInfo.size() + ") Highlighting: " + category);
-                    int count = highlightTextInPDF(document, searchText);
-                    highlightCount += count;
-                    itemNumber++;
+                System.out.println("[" + itemNumber + "/" + extractedInfo.size() + "] Searching: " + category);
+
+                if (searchText != null && searchText.length() > 15) {
+                    for (int pageNum = 1; pageNum <= document.getNumberOfPages(); pageNum++) {
+                        List<HighlightRect> highlights = findTextOnPage(document, pageNum, searchText, category);
+                        if (!highlights.isEmpty()) {
+                            allHighlights.computeIfAbsent(pageNum, k -> new ArrayList<>()).addAll(highlights);
+                            totalMatches += highlights.size();
+                        }
+                    }
                 }
+                itemNumber++;
             }
 
-            System.out.println("Total highlights applied: " + highlightCount);
+            System.out.println("Total matches found: " + totalMatches);
 
-            // Save the highlighted PDF
+            if (totalMatches > 0) {
+                applyHighlightsToDocument(document, allHighlights);
+                System.out.println("Highlights applied successfully!");
+            }
+
             document.save(outputFile);
         }
 
         return outputFile;
     }
 
-    private int highlightTextInPDF(PDDocument document, String searchText) throws IOException {
-        int highlightCount = 0;
-
-        // Search in all pages
-        for (int pageNum = 1; pageNum <= document.getNumberOfPages(); pageNum++) {
-            highlightCount += highlightTextOnPage(document, searchText, pageNum);
-        }
-
-        return highlightCount;
-    }
-
-    private int highlightTextOnPage(PDDocument document, String searchText, int pageNum) throws IOException {
+    private List<HighlightRect> findTextOnPage(PDDocument document, int pageNum, String searchText, String category) throws IOException {
+        List<HighlightRect> highlights = new ArrayList<>();
         PDPage page = document.getPage(pageNum - 1);
         PDRectangle pageSize = page.getMediaBox();
-        float pageHeight = pageSize.getHeight();
+        final float pageHeight = pageSize.getHeight();
+        final String finalCategory = category;
+        final int finalPageNum = pageNum;
 
-        List<float[]> highlightRects = new ArrayList<>();
+        List<String> searchChunks = breakTextIntoChunks(searchText);
+        final List<String> finalSearchChunks = new ArrayList<>(searchChunks);
 
-        // Custom stripper to find text positions
         PDFTextStripper stripper = new PDFTextStripper() {
             @Override
             protected void writeString(String text, List<TextPosition> textPositions) throws IOException {
-                String lowerText = text.toLowerCase();
-                String lowerSearch = searchText.toLowerCase();
+                String pageText = text.toLowerCase();
 
-                if (lowerText.contains(lowerSearch)) {
-                    float minX = Float.MAX_VALUE;
-                    float maxX = Float.MIN_VALUE;
-                    float minY = Float.MAX_VALUE;
-                    float maxY = Float.MIN_VALUE;
-                    boolean found = false;
+                for (String chunk : finalSearchChunks) {
+                    String lowerChunk = chunk.toLowerCase();
+                    if (pageText.contains(lowerChunk)) {
+                        int foundIndex = pageText.indexOf(lowerChunk);
 
-                    for (TextPosition position : textPositions) {
-                        String charText = position.getUnicode();
-                        if (charText != null && !charText.trim().isEmpty()) {
-                            if (lowerSearch.contains(charText.toLowerCase())) {
-                                float x = position.getX();
-                                float y = position.getY();
-                                float width = position.getWidth();
-                                float height = position.getHeight();
+                        if (foundIndex >= 0) {
+                            int charCount = 0;
+                            float minX = Float.MAX_VALUE;
+                            float maxX = Float.MIN_VALUE;
+                            float minY = Float.MAX_VALUE;
+                            float maxY = Float.MIN_VALUE;
+                            String matchedText = "";
 
-                                minX = Math.min(minX, x);
-                                maxX = Math.max(maxX, x + width);
-                                minY = Math.min(minY, y);
-                                maxY = Math.max(maxY, y + height);
-                                found = true;
+                            for (TextPosition pos : textPositions) {
+                                String charText = pos.getUnicode();
+                                if (charText != null && !charText.trim().isEmpty()) {
+                                    if (charCount >= foundIndex && charCount < foundIndex + lowerChunk.length()) {
+                                        float x = pos.getX();
+                                        float y = pos.getY();
+                                        float width = pos.getWidth();
+                                        float height = pos.getHeight();
+
+                                        minX = Math.min(minX, x);
+                                        maxX = Math.max(maxX, x + width);
+                                        minY = Math.min(minY, y);
+                                        maxY = Math.max(maxY, y + height);
+                                        matchedText += charText;
+                                    }
+                                    charCount++;
+                                }
                             }
-                        }
-                    }
 
-                    if (found && minX != Float.MAX_VALUE) {
-                        float rectX = minX;
-                        float rectY = pageHeight - maxY;
-                        float rectWidth = maxX - minX;
-                        float rectHeight = maxY - minY;
-
-                        if (rectWidth > 0 && rectHeight > 0 && rectWidth < pageSize.getWidth()) {
-                            highlightRects.add(new float[]{rectX, rectY, rectWidth, rectHeight});
+                            if (minX != Float.MAX_VALUE) {
+                                HighlightRect hr = new HighlightRect();
+                                hr.x = minX - 1;
+                                hr.y = pageHeight - maxY - 2;
+                                hr.width = maxX - minX + 2;
+                                hr.height = maxY - minY + 4;
+                                hr.category = finalCategory;
+                                hr.text = matchedText.length() > 0 ? matchedText : chunk;
+                                highlights.add(hr);
+                            }
                         }
                     }
                 }
@@ -117,30 +124,91 @@ public class PDFHighlighterService {
             }
         };
 
-        stripper.setStartPage(pageNum);
-        stripper.setEndPage(pageNum);
+        stripper.setStartPage(finalPageNum);
+        stripper.setEndPage(finalPageNum);
         stripper.getText(document);
 
-        // Apply highlights if we found matching positions
-        if (!highlightRects.isEmpty()) {
+        return removeDuplicateHighlights(highlights);
+    }
+
+    private List<String> breakTextIntoChunks(String text) {
+        List<String> chunks = new ArrayList<>();
+        String cleanText = text.replaceAll("[^a-zA-Z0-9\\s.,;:!?'\"-]", " ").trim();
+
+        if (cleanText.length() > 20 && cleanText.length() < 300) {
+            chunks.add(cleanText);
+        }
+
+        String[] sentences = cleanText.split("[.!?]+");
+        for (String sentence : sentences) {
+            String trimmed = sentence.trim();
+            if (trimmed.length() > 20 && trimmed.length() < 200) {
+                chunks.add(trimmed);
+            }
+        }
+
+        String[] words = cleanText.split("\\s+");
+        if (words.length >= 5) {
+            StringBuilder keyPhrase = new StringBuilder();
+            for (int i = 0; i < Math.min(10, words.length); i++) {
+                keyPhrase.append(words[i]).append(" ");
+            }
+            String phrase = keyPhrase.toString().trim();
+            if (phrase.length() > 15 && !chunks.contains(phrase)) {
+                chunks.add(phrase);
+            }
+        }
+
+        Set<String> uniqueChunks = new LinkedHashSet<>(chunks);
+        return new ArrayList<>(uniqueChunks);
+    }
+
+    private List<HighlightRect> removeDuplicateHighlights(List<HighlightRect> highlights) {
+        List<HighlightRect> unique = new ArrayList<>();
+        for (HighlightRect hr : highlights) {
+            boolean isDuplicate = false;
+            for (HighlightRect existing : unique) {
+                if (Math.abs(existing.x - hr.x) < 10 && Math.abs(existing.y - hr.y) < 10) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (!isDuplicate) {
+                unique.add(hr);
+            }
+        }
+        return unique;
+    }
+
+    private void applyHighlightsToDocument(PDDocument document, Map<Integer, List<HighlightRect>> allHighlights) throws IOException {
+        for (Map.Entry<Integer, List<HighlightRect>> entry : allHighlights.entrySet()) {
+            int pageNum = entry.getKey();
+            List<HighlightRect> highlights = entry.getValue();
+            PDPage page = document.getPage(pageNum - 1);
+
             try (PDPageContentStream contentStream = new PDPageContentStream(
                     document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 
-                // Set transparency for highlight
+                // Set semi-transparent yellow highlight (so text remains visible)
                 PDExtendedGraphicsState graphicsState = new PDExtendedGraphicsState();
-                graphicsState.setNonStrokingAlphaConstant(0.5f);
+                graphicsState.setNonStrokingAlphaConstant(0.4f); // 40% opacity - text will be visible
                 contentStream.setGraphicsStateParameters(graphicsState);
+                contentStream.setNonStrokingColor(1f, 1f, 0f); // Yellow color
 
-                // Set yellow color (RGB: 1, 1, 0)
-                contentStream.setNonStrokingColor(1f, 1f, 0f);
-
-                for (float[] rect : highlightRects) {
-                    contentStream.addRect(rect[0], rect[1], rect[2], rect[3]);
+                for (HighlightRect hr : highlights) {
+                    contentStream.addRect(hr.x, hr.y, hr.width, hr.height);
                     contentStream.fill();
                 }
             }
         }
+    }
 
-        return highlightRects.size();
+    private static class HighlightRect {
+        float x;
+        float y;
+        float width;
+        float height;
+        String category;
+        String text;
     }
 }
