@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>PDF Viewer with Highlighting</title>
+    <title>PDF Viewer</title>
     <style>
         * {
             margin: 0;
@@ -11,71 +11,51 @@
         }
 
         body {
+            background-color: #525659;
             font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #f5f5f5;
-            overflow: hidden;
         }
 
         #toolbar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(135deg, #2c3e50, #34495e);
+            background: #3c3f41;
             color: white;
-            padding: 10px 15px;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            display: none;
-            flex-wrap: wrap;
+            padding: 8px 12px;
+            display: flex;
             gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #555;
         }
 
         #toolbar button {
-            background: #3498db;
+            background: #5a5e62;
             border: none;
             color: white;
             padding: 6px 12px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 13px;
-            transition: all 0.3s;
+            transition: background 0.2s;
         }
 
         #toolbar button:hover {
-            background: #2980b9;
-            transform: scale(1.02);
+            background: #6c757d;
         }
 
-        #toolbar .danger-btn {
-            background: #e74c3c;
-        }
-
-        #toolbar .danger-btn:hover {
-            background: #c0392b;
-        }
-
-        #toolbar .success-btn {
-            background: #27ae60;
-        }
-
-        #toolbar .success-btn:hover {
-            background: #229954;
-        }
-
-        #pageInfo {
-            display: inline-block;
+        #toolbar .page-info {
+            background: #2c3e50;
             padding: 6px 12px;
-            background: rgba(255,255,255,0.2);
             border-radius: 4px;
             font-size: 13px;
         }
 
-        #searchInput {
-            padding: 6px 10px;
-            border: none;
+        #toolbar input {
+            padding: 6px 8px;
             border-radius: 4px;
-            width: 200px;
+            border: 1px solid #555;
+            background: #2c3e50;
+            color: white;
+            width: 60px;
+            text-align: center;
         }
 
         #viewerContainer {
@@ -85,161 +65,85 @@
             right: 0;
             bottom: 0;
             overflow: auto;
-            background: #e0e0e0;
             padding: 20px;
+            background: #525659;
         }
 
         .page-container {
             position: relative;
             margin: 0 auto 20px auto;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             background: white;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.3);
         }
 
         canvas {
             display: block;
             margin: 0 auto;
+            width: 100%;
+            height: auto;
         }
 
-        .highlight-overlay {
+        .loading {
             position: absolute;
-            pointer-events: none;
-            background-color: rgba(255, 255, 0, 0.4);
-            border-radius: 2px;
-            transition: all 0.2s;
-        }
-
-        .highlight-overlay:hover {
-            background-color: rgba(255, 235, 59, 0.7);
-            pointer-events: auto;
-            cursor: pointer;
-        }
-
-        .highlight-tooltip {
-            position: fixed;
-            background: #2c3e50;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            z-index: 2000;
-            pointer-events: none;
-            white-space: nowrap;
+            font-size: 18px;
+            text-align: center;
         }
 
-        #legend {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-size: 11px;
-            z-index: 1001;
-            display: none;
-            max-width: 250px;
-        }
-
-        #legend h4 {
-            margin-bottom: 5px;
-            font-size: 12px;
-        }
-
-        .legend-color {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border-radius: 3px;
-            margin-right: 5px;
-            vertical-align: middle;
-        }
-
-        .legend-item {
-            margin-bottom: 3px;
-            font-size: 10px;
-        }
-
-        .summary-panel {
-            position: fixed;
-            left: 10px;
-            bottom: 10px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            max-width: 300px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1001;
-            display: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .summary-panel h4 {
-            margin-bottom: 5px;
-            color: #2c3e50;
-        }
-
-        .highlight-badge {
-            background: #FFEB3B;
-            color: #333;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 10px;
-            margin-left: 5px;
+        .error {
+            color: #ff6b6b;
+            text-align: center;
+            padding: 50px;
+            font-size: 16px;
         }
     </style>
+    <!-- PDF.js from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>
+        // Configure PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         let pdfDoc = null;
         let currentPage = 1;
         let totalPages = 0;
-        let scale = 1.5;
-        let highlights = [];
-        let currentHighlights = [];
+        let currentScale = 1.2;
+        let rendering = false;
 
+        // Load PDF function
         function loadPDF(url) {
-            const loadingTask = pdfjsLib.getDocument(url);
-            loadingTask.promise.then(function(pdf) {
+            showLoading(true);
+
+            pdfjsLib.getDocument(url).promise.then(function(pdf) {
                 pdfDoc = pdf;
                 totalPages = pdf.numPages;
                 document.getElementById('totalPages').textContent = totalPages;
-                document.getElementById('toolbar').style.display = 'flex';
-                document.getElementById('legend').style.display = 'block';
-                renderAllPages();
+                document.getElementById('currentPage').textContent = currentPage;
+                document.getElementById('pageInput').value = currentPage;
+                renderPage(currentPage);
+                showLoading(false);
             }).catch(function(error) {
                 console.error('Error loading PDF:', error);
-                document.getElementById('viewerContainer').innerHTML =
-                    '<div style="padding: 20px; color: red; text-align: center;">Error loading PDF: ' + error.message + '</div>';
+                showError('Failed to load PDF: ' + error.message);
+                showLoading(false);
             });
         }
 
-        function renderAllPages() {
-            const container = document.getElementById('viewerContainer');
-            container.innerHTML = '';
+        // Render a specific page
+        function renderPage(pageNum) {
+            if (!pdfDoc || rendering) return;
 
-            for (let i = 1; i <= totalPages; i++) {
-                renderPage(i, container);
-            }
-        }
+            rendering = true;
+            showLoading(true);
 
-        function renderPage(pageNum, container) {
             pdfDoc.getPage(pageNum).then(function(page) {
-                const viewport = page.getViewport({ scale: scale });
+                const viewport = page.getViewport({ scale: currentScale });
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
-                canvas.style.width = '100%';
-                canvas.style.height = 'auto';
-
-                const pageContainer = document.createElement('div');
-                pageContainer.className = 'page-container';
-                pageContainer.style.width = viewport.width + 'px';
-                pageContainer.id = 'page-' + pageNum;
 
                 const renderContext = {
                     canvasContext: context,
@@ -247,115 +151,32 @@
                 };
 
                 page.render(renderContext).promise.then(function() {
+                    const container = document.getElementById('viewerContainer');
+                    container.innerHTML = '';
+                    const pageContainer = document.createElement('div');
+                    pageContainer.className = 'page-container';
+                    pageContainer.style.width = viewport.width + 'px';
                     pageContainer.appendChild(canvas);
                     container.appendChild(pageContainer);
-
-                    // Apply highlights after page is rendered
-                    applyHighlightsToPage(pageNum, pageContainer, viewport);
+                    rendering = false;
+                    showLoading(false);
+                }).catch(function(error) {
+                    console.error('Render error:', error);
+                    rendering = false;
+                    showLoading(false);
                 });
+            }).catch(function(error) {
+                console.error('Page error:', error);
+                rendering = false;
+                showLoading(false);
             });
         }
 
-        function applyHighlightsToPage(pageNum, container, viewport) {
-            const pageHighlights = highlights.filter(h => h.page === pageNum);
-            if (!pageHighlights.length) return;
-
-            // Get text content for accurate positioning
-            pdfDoc.getPage(pageNum).then(function(page) {
-                page.getTextContent().then(function(textContent) {
-                    const textItems = textContent.items;
-
-                    pageHighlights.forEach(highlight => {
-                        highlight.texts.forEach(highlightText => {
-                            // Find matching text in the page
-                            for (let i = 0; i < textItems.length; i++) {
-                                const item = textItems[i];
-                                if (item.str && item.str.toLowerCase().includes(highlightText.toLowerCase())) {
-                                    const transform = item.transform;
-                                    const x = transform[4] * scale;
-                                    const y = viewport.height - (transform[5] * scale);
-                                    const width = item.width * scale;
-                                    const height = item.height * scale;
-
-                                    const overlay = document.createElement('div');
-                                    overlay.className = 'highlight-overlay';
-                                    overlay.style.position = 'absolute';
-                                    overlay.style.left = x + 'px';
-                                    overlay.style.top = (y - height) + 'px';
-                                    overlay.style.width = width + 'px';
-                                    overlay.style.height = height + 'px';
-                                    overlay.style.backgroundColor = highlight.color || 'rgba(255, 255, 0, 0.4)';
-                                    overlay.style.borderRadius = '2px';
-                                    overlay.title = 'Extracted: ' + highlightText.substring(0, 100);
-
-                                    overlay.addEventListener('mouseenter', function(e) {
-                                        showTooltip(e, '📄 ' + highlightText.substring(0, 150));
-                                    });
-
-                                    overlay.addEventListener('mouseleave', function() {
-                                        hideTooltip();
-                                    });
-
-                                    container.appendChild(overlay);
-                                }
-                            }
-                        });
-                    });
-                });
-            });
-        }
-
-        function showTooltip(event, text) {
-            let tooltip = document.getElementById('tooltip');
-            if (!tooltip) {
-                tooltip = document.createElement('div');
-                tooltip.id = 'tooltip';
-                tooltip.className = 'highlight-tooltip';
-                document.body.appendChild(tooltip);
-            }
-            tooltip.style.display = 'block';
-            tooltip.style.left = (event.clientX + 10) + 'px';
-            tooltip.style.top = (event.clientY - 30) + 'px';
-            tooltip.textContent = text;
-        }
-
-        function hideTooltip() {
-            const tooltip = document.getElementById('tooltip');
-            if (tooltip) {
-                tooltip.style.display = 'none';
-            }
-        }
-
-        function addHighlights(highlightsData) {
-            highlights = highlightsData;
-            renderAllPages();
-            updateHighlightCount();
-        }
-
-        function clearHighlights() {
-            highlights = [];
-            renderAllPages();
-            document.getElementById('highlightInfo').style.display = 'none';
-        }
-
-        function updateHighlightCount() {
-            const totalHighlights = highlights.reduce((sum, h) => sum + h.texts.length, 0);
-            const infoDiv = document.getElementById('highlightInfo');
-            if (totalHighlights > 0) {
-                infoDiv.style.display = 'block';
-                infoDiv.innerHTML = '✨ ' + totalHighlights + ' sections highlighted from the summary ✨';
-                setTimeout(() => {
-                    infoDiv.style.opacity = '0.9';
-                }, 100);
-            } else {
-                infoDiv.style.display = 'none';
-            }
-        }
-
+        // Navigation functions
         function nextPage() {
             if (currentPage < totalPages) {
                 currentPage++;
-                scrollToPage(currentPage);
+                renderPage(currentPage);
                 updatePageInfo();
             }
         }
@@ -363,156 +184,96 @@
         function prevPage() {
             if (currentPage > 1) {
                 currentPage--;
-                scrollToPage(currentPage);
+                renderPage(currentPage);
                 updatePageInfo();
             }
-        }
-
-        function scrollToPage(pageNum) {
-            const pageElement = document.getElementById('page-' + pageNum);
-            if (pageElement) {
-                pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-
-        function updatePageInfo() {
-            document.getElementById('currentPage').textContent = currentPage;
         }
 
         function goToPage() {
             const page = parseInt(document.getElementById('pageInput').value);
             if (page >= 1 && page <= totalPages) {
                 currentPage = page;
-                scrollToPage(currentPage);
+                renderPage(currentPage);
                 updatePageInfo();
             }
         }
 
-        function searchAndHighlight() {
-            const searchText = document.getElementById('searchInput').value;
-            if (!searchText) return;
-
-            const newHighlights = [];
-            for (let i = 1; i <= totalPages; i++) {
-                newHighlights.push({
-                    texts: [searchText],
-                    page: i,
-                    color: 'rgba(255, 235, 59, 0.5)'
-                });
-            }
-            addHighlights(newHighlights);
-        }
-
-        window.loadPDFFromJava = function(url) {
-            loadPDF(url);
-        };
-
-        window.highlightFromJava = function(highlightsJson) {
-            const data = JSON.parse(highlightsJson);
-            const formattedHighlights = [];
-
-            data.forEach(item => {
-                if (item.texts && item.texts.length) {
-                    formattedHighlights.push({
-                        texts: item.texts,
-                        page: item.page,
-                        color: item.color || 'rgba(255, 255, 0, 0.4)'
-                    });
-                }
-            });
-
-            addHighlights(formattedHighlights);
-
-            // Show success message
-            const total = formattedHighlights.reduce((sum, h) => sum + h.texts.length, 0);
-            showNotification('✅ ' + total + ' sections highlighted from the summary!', 'success');
-        };
-
-        function showNotification(message, type) {
-            const notification = document.createElement('div');
-            notification.style.position = 'fixed';
-            notification.style.top = '70px';
-            notification.style.right = '10px';
-            notification.style.background = type === 'success' ? '#27ae60' : '#e74c3c';
-            notification.style.color = 'white';
-            notification.style.padding = '10px 20px';
-            notification.style.borderRadius = '5px';
-            notification.style.zIndex = '2000';
-            notification.style.fontSize = '14px';
-            notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-            notification.innerHTML = message;
-            document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        }
-
         function zoomIn() {
-            scale += 0.2;
-            renderAllPages();
+            currentScale += 0.2;
+            renderPage(currentPage);
         }
 
         function zoomOut() {
-            scale = Math.max(0.8, scale - 0.2);
-            renderAllPages();
+            if (currentScale > 0.6) {
+                currentScale -= 0.2;
+                renderPage(currentPage);
+            }
         }
 
         function resetZoom() {
-            scale = 1.5;
-            renderAllPages();
+            currentScale = 1.2;
+            renderPage(currentPage);
         }
 
+        function updatePageInfo() {
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('pageInput').value = currentPage;
+        }
+
+        function showLoading(show) {
+            const loader = document.getElementById('loadingIndicator');
+            if (loader) {
+                loader.style.display = show ? 'block' : 'none';
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('viewerContainer');
+            container.innerHTML = '<div class="error">❌ ' + message + '</div>';
+        }
+
+        // Java integration methods
+        window.loadPDFFromJava = function(url) {
+            console.log('Loading PDF from URL:', url);
+            loadPDF(url);
+        };
+
+        window.getTotalPages = function() {
+            return totalPages;
+        };
+
+        window.getCurrentPage = function() {
+            return currentPage;
+        };
+
+        // Initialize event listeners
         window.onload = function() {
-            document.getElementById('nextBtn')?.addEventListener('click', nextPage);
             document.getElementById('prevBtn')?.addEventListener('click', prevPage);
+            document.getElementById('nextBtn')?.addEventListener('click', nextPage);
             document.getElementById('goToBtn')?.addEventListener('click', goToPage);
-            document.getElementById('clearHighlightsBtn')?.addEventListener('click', clearHighlights);
-            document.getElementById('searchBtn')?.addEventListener('click', searchAndHighlight);
             document.getElementById('zoomInBtn')?.addEventListener('click', zoomIn);
             document.getElementById('zoomOutBtn')?.addEventListener('click', zoomOut);
             document.getElementById('resetZoomBtn')?.addEventListener('click', resetZoom);
+            document.getElementById('pageInput')?.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') goToPage();
+            });
         };
     </script>
 </head>
 <body>
 <div id="toolbar">
-    <button id="prevBtn">◀ Previous</button>
-    <span id="pageInfo">Page <span id="currentPage">1</span> of <span id="totalPages">0</span></span>
-    <button id="nextBtn">Next ▶</button>
-    <input type="number" id="pageInput" placeholder="Page" style="width: 70px; padding: 5px;">
+    <button id="prevBtn" title="Previous Page">◀ Previous</button>
+    <span class="page-info">Page <span id="currentPage">1</span> of <span id="totalPages">0</span></span>
+    <button id="nextBtn" title="Next Page">Next ▶</button>
+    <input type="number" id="pageInput" min="1" value="1" style="width: 60px;">
     <button id="goToBtn">Go</button>
     <div style="flex:1"></div>
     <button id="zoomOutBtn" title="Zoom Out">🔍−</button>
     <button id="zoomInBtn" title="Zoom In">🔍+</button>
     <button id="resetZoomBtn" title="Reset Zoom">100%</button>
-    <button id="clearHighlightsBtn" class="danger-btn">🗑️ Clear Highlights</button>
-    <div>
-        <input type="text" id="searchInput" placeholder="Search text...">
-        <button id="searchBtn" class="success-btn">🔍 Search & Highlight</button>
-    </div>
 </div>
-
-<div id="viewerContainer"></div>
-
-<div id="legend">
-    <h4>📌 Highlight Legend</h4>
-    <div class="legend-item">
-        <span class="legend-color" style="background: rgba(255, 255, 0, 0.4);"></span>
-        Extracted Information from Summary
-    </div>
-    <div class="legend-item">
-        <span class="legend-color" style="background: rgba(255, 235, 59, 0.5);"></span>
-        Search Results
-    </div>
-    <hr style="margin: 5px 0;">
-    <div class="legend-item">
-        💡 Hover over highlights to see extracted text
-    </div>
-</div>
-
-<div id="highlightInfo" style="display: none; position: fixed; bottom: 10px; left: 10px; background: rgba(46, 204, 113, 0.9); color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; z-index: 1001;">
-    ✨ Highlights applied from summary ✨
+<div id="viewerContainer">
+    <div class="loading" id="loadingIndicator">📄 Loading PDF...</div>
 </div>
 </body>
 </html>

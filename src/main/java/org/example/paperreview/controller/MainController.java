@@ -251,46 +251,82 @@ public class MainController {
 
     private void loadPDFPreview(File file) {
         try {
-            String htmlContent = "<!DOCTYPE html>\n" +
-                    "<html>\n" +
-                    "<head>\n" +
-                    "    <style>\n" +
-                    "        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }\n" +
-                    "        .container { max-width: 800px; margin: 50px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; }\n" +
-                    "        .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }\n" +
-                    "        .content { padding: 30px; }\n" +
-                    "        .info-box { background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #4CAF50; }\n" +
-                    "        h2 { color: #2c3e50; margin-top: 0; }\n" +
-                    "    </style>\n" +
-                    "</head>\n" +
-                    "<body>\n" +
-                    "    <div class='container'>\n" +
-                    "        <div class='header'>\n" +
-                    "            <h1>📄 Academic Paper Review Assistant</h1>\n" +
-                    "        </div>\n" +
-                    "        <div class='content'>\n" +
-                    "            <h2>✅ PDF Loaded Successfully!</h2>\n" +
-                    "            <div class='info-box'>\n" +
-                    "                <strong>📁 File:</strong> " + file.getName() + "<br>\n" +
-                    "                <strong>📄 Pages:</strong> " + pdfParser.getNumberOfPages() + "<br>\n" +
-                    "                <strong>📊 Status:</strong> Ready for analysis\n" +
-                    "            </div>\n" +
-                    "            <h3>🎯 Next Steps:</h3>\n" +
-                    "            <ol>\n" +
-                    "                <li>Click <strong>'Analyze Paper'</strong> to extract all information</li>\n" +
-                    "                <li>View extracted information in the tabs</li>\n" +
-                    "                <li>Click <strong>'Highlight Extracted Info'</strong> to create highlighted PDF</li>\n" +
-                    "            </ol>\n" +
-                    "        </div>\n" +
-                    "    </div>\n" +
-                    "</body>\n" +
-                    "</html>";
+            String pdfUrl = file.toURI().toURL().toString();
 
-            pdfPreview.getEngine().loadContent(htmlContent);
-            pdfViewerLoaded = true;
+            // Load the PDF viewer HTML
+            java.net.URL viewerUrl = getClass().getResource("/org/example/paperreview/pdf-viewer.html");
+            if (viewerUrl != null) {
+                pdfPreview.getEngine().load(viewerUrl.toExternalForm());
+
+                // Add listener to load PDF when viewer is ready
+                pdfPreview.getEngine().getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+                    if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
+                        Platform.runLater(() -> {
+                            try {
+                                String script = String.format(
+                                        "if (typeof loadPDFFromJava !== 'undefined') {" +
+                                                "  loadPDFFromJava('%s');" +
+                                                "} else {" +
+                                                "  console.error('loadPDFFromJava not defined');" +
+                                                "}",
+                                        pdfUrl
+                                );
+                                pdfPreview.getEngine().executeScript(script);
+                                pdfViewerLoaded = true;
+
+                                // Get total pages after a delay
+                                new java.util.Timer().schedule(new java.util.TimerTask() {
+                                    @Override
+                                    public void run() {
+                                        Platform.runLater(() -> {
+                                            try {
+                                                Object totalPagesObj = pdfPreview.getEngine().executeScript("getTotalPages()");
+                                                if (totalPagesObj instanceof Number) {
+                                                    totalPages = ((Number) totalPagesObj).intValue();
+                                                    totalPagesLabel.setText(String.valueOf(totalPages));
+                                                    pageNumberLabel.setText("1");
+                                                }
+                                            } catch (Exception e) {
+                                                System.out.println("Could not get total pages: " + e.getMessage());
+                                            }
+                                        });
+                                    }
+                                }, 2000);
+                            } catch (Exception e) {
+                                System.out.println("Script execution error: " + e.getMessage());
+                            }
+                        });
+                    }
+                });
+            } else {
+                // Fallback HTML if viewer not found
+                String fallbackHtml = "<!DOCTYPE html>\n" +
+                        "<html>\n" +
+                        "<head>\n" +
+                        "    <style>\n" +
+                        "        body { font-family: Arial; padding: 20px; background: #f5f5f5; }\n" +
+                        "        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }\n" +
+                        "        h2 { color: #2c3e50; }\n" +
+                        "        .info { background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 15px 0; }\n" +
+                        "    </style>\n" +
+                        "</head>\n" +
+                        "<body>\n" +
+                        "    <div class='container'>\n" +
+                        "        <h2>📄 PDF Loaded Successfully</h2>\n" +
+                        "        <div class='info'>\n" +
+                        "            <p><strong>File:</strong> " + file.getName() + "</p>\n" +
+                        "            <p><strong>Pages:</strong> " + pdfParser.getNumberOfPages() + "</p>\n" +
+                        "        </div>\n" +
+                        "        <p>Click <strong>'Open Highlighted PDF'</strong> to view the PDF in your default viewer.</p>\n" +
+                        "    </div>\n" +
+                        "</body>\n" +
+                        "</html>";
+                pdfPreview.getEngine().loadContent(fallbackHtml);
+                pdfViewerLoaded = true;
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            pdfPreview.getEngine().loadContent("<html><body><h3>PDF Loaded</h3><p>File: " + file.getName() + "</p></body></html>");
+            pdfPreview.getEngine().loadContent("<html><body><h3>Error loading PDF viewer</h3><p>" + e.getMessage() + "</p></body></html>");
             pdfViewerLoaded = true;
         }
     }
