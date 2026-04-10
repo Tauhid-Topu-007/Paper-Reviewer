@@ -1,0 +1,96 @@
+.root {
+    -fx-font-family: "Segoe UI";
+    -fx-background-color: #f5f5f5;
+}
+
+.label {
+    -fx-text-fill: #333333;
+}
+
+.button {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 15 8 15;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #45a049;
+}
+
+.button:pressed {
+    -fx-background-color: #3d8b40;
+}
+
+.tool-bar {
+    -fx-background-color: #e0e0e0;
+}
+
+.menu-bar {
+    -fx-background-color: #f0f0f0;
+}
+
+.menu:hover {
+    -fx-background-color: #e0e0e0;
+}
+
+.menu-item:hover {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.text-area, .list-view {
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 5px;
+}
+
+.text-area:focused, .list-view:focused {
+    -fx-border-color: #4CAF50;
+}
+
+.progress-bar {
+    -fx-accent: #4CAF50;
+}
+
+.tab-pane {
+    -fx-tab-min-height: 30px;
+}
+
+.tab {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-color: #e0e0e0;
+}
+
+.tab:selected {
+    -fx-background-color: #4CAF50;
+    -fx-text-fill: white;
+}
+
+.tab .tab-label {
+    -fx-text-fill: #333333;
+}
+
+.tab:selected .tab-label {
+    -fx-text-fill: white;
+}
+
+.split-pane {
+    -fx-background-color: #f5f5f5;
+}
+
+.split-pane-divider {
+    -fx-background-color: #cccccc;
+}
+
+.scroll-pane {
+    -fx-background-color: white;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 5px;
+}
+
+.web-view {
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 5px;
+}

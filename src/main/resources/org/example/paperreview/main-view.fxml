@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.web.WebView?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.paperreview.controller.MainController">
+    <top>
+        <VBox spacing="10">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <MenuBar>
+                <Menu text="File">
+                    <MenuItem text="Open PDF" onAction="#handleOpenPDF"/>
+                    <SeparatorMenuItem/>
+                    <Menu text="Export">
+                        <MenuItem text="Export as CSV" onAction="#handleExportCSV"/>
+                        <MenuItem text="Export as DOCX" onAction="#handleExportDOCX"/>
+                        <MenuItem text="Export as PDF" onAction="#handleExportPDF"/>
+                    </Menu>
+                    <SeparatorMenuItem/>
+                    <MenuItem text="Exit" onAction="#handleExit"/>
+                </Menu>
+                <Menu text="View">
+                    <MenuItem text="Toggle Dark Mode" onAction="#handleToggleDarkMode"/>
+                    <MenuItem text="Reset View" onAction="#handleResetView"/>
+                </Menu>
+                <Menu text="Help">
+                    <MenuItem text="Documentation" onAction="#handleDocumentation"/>
+                    <SeparatorMenuItem/>
+                    <MenuItem text="About" onAction="#handleAbout"/>
+                </Menu>
+            </MenuBar>
+            <ToolBar>
+                <Button text="Upload PDF" onAction="#handleOpenPDF"/>
+                <Button text="Analyze Paper" onAction="#handleAnalyze"/>
+                <Button text="Show Source Lines" onAction="#handleShowSourceLines"/>
+                <Button text="Export Report" onAction="#handleExport"/>
+                <Button text="Clear All" onAction="#handleClear"/>
+                <Separator/>
+                <Label text="Status:"/>
+                <Label fx:id="statusLabel" text="Ready"/>
+                <ProgressBar fx:id="progressIndicator" visible="false" prefWidth="100"/>
+            </ToolBar>
+        </VBox>
+    </top>
+
+    <center>
+        <SplitPane dividerPositions="0.4">
+            <items>
+                <!-- Left Panel - PDF Preview -->
+                <VBox spacing="10">
+                    <padding>
+                        <Insets top="10" right="10" bottom="10" left="10"/>
+                    </padding>
+                    <Label text="PDF Preview" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                    <WebView fx:id="pdfPreview" prefHeight="600"/>
+                </VBox>
+
+                <!-- Right Panel - Analysis Results -->
+                <TabPane tabClosingPolicy="UNAVAILABLE">
+                    <Tab text="Extracted Information">
+                        <ScrollPane>
+                            <VBox spacing="10">
+                                <padding>
+                                    <Insets top="10" right="10" bottom="10" left="10"/>
+                                </padding>
+                                <Label text="Paper Title" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="paperTitleLabel" wrapText="true"/>
+
+                                <Label text="Authors" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="authorsLabel" wrapText="true"/>
+
+                                <Label text="Research Domain" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="domainLabel" wrapText="true"/>
+
+                                <Label text="Research Problem" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="problemLabel" wrapText="true"/>
+
+                                <Label text="Research Gap" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="gapLabel" wrapText="true"/>
+
+                                <Label text="Research Questions" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="questionsLabel" wrapText="true"/>
+
+                                <Label text="Hypothesis" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="hypothesisLabel" wrapText="true"/>
+
+                                <Label text="Methodology" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="methodologyLabel" wrapText="true"/>
+
+                                <Label text="Data Collection Methods" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="dataCollectionLabel" wrapText="true"/>
+
+                                <Label text="Key Findings" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="findingsLabel" wrapText="true"/>
+
+                                <Label text="Citations" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="citationsLabel" wrapText="true"/>
+
+                                <Label text="Publication Category" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="publicationLabel" wrapText="true"/>
+                            </VBox>
+                        </ScrollPane>
+                    </Tab>
+
+                    <Tab text="Review Assistant">
+                        <VBox spacing="10">
+                            <padding>
+                                <Insets top="10" right="10" bottom="10" left="10"/>
+                            </padding>
+                            <Label text="Executive Summary" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                            <TextArea fx:id="summaryArea" wrapText="true" prefHeight="100"/>
+
+                            <Label text="Strengths" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                            <ListView fx:id="strengthsList" prefHeight="100"/>
+
+                            <Label text="Weaknesses" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                            <ListView fx:id="weaknessesList" prefHeight="100"/>
+
+                            <Label text="Future Research Scope" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                            <ListView fx:id="futureScopeList" prefHeight="100"/>
+
+                            <Label text="Quality Assessment" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                            <ProgressBar fx:id="qualityScoreBar" prefWidth="300"/>
+                            <Label fx:id="qualityScoreLabel"/>
+
+                            <Label text="Writing Quality" style="-fx-font-weight: bold;"/>
+                            <Label fx:id="writingQualityLabel" wrapText="true"/>
+
+                            <Label text="Plagiarism Risk" style="-fx-font-weight: bold;"/>
+                            <Label fx:id="plagiarismLabel" wrapText="true"/>
+                        </VBox>
+                    </Tab>
+                </TabPane>
+            </items>
+        </SplitPane>
+    </center>
+</BorderPane>

@@ -1,0 +1,79 @@
+/* styles.css */
+.root {
+    -fx-font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.label {
+    -fx-text-fill: #2c3e50;
+}
+
+.text-area, .list-view {
+    -fx-background-color: white;
+    -fx-border-color: #bdc3c7;
+    -fx-border-radius: 3px;
+}
+
+.button {
+    -fx-background-color: #ecf0f1;
+    -fx-text-fill: #2c3e50;
+    -fx-padding: 8px 15px;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #bdc3c7;
+}
+
+.progress-bar {
+    -fx-accent: #3498db;
+}
+
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #ecf0f1;
+}
+
+.tab {
+    -fx-background-color: #bdc3c7;
+}
+
+.tab:selected {
+    -fx-background-color: #3498db;
+}
+
+.tab:selected .tab-label {
+    -fx-text-fill: white;
+}
+
+/* Dark mode CSS */
+.dark-mode {
+    -fx-base: #2b2b2b;
+    -fx-background: #2b2b2b;
+    -fx-control-inner-background: #3c3c3c;
+    -fx-text-fill: white;
+}
+
+.dark-mode .label {
+    -fx-text-fill: #ecf0f1;
+}
+
+.dark-mode .text-area, .dark-mode .list-view {
+    -fx-background-color: #3c3c3c;
+    -fx-text-fill: white;
+}
+
+.dark-mode .button {
+    -fx-background-color: #4a4a4a;
+    -fx-text-fill: white;
+}
+
+.dark-mode .tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #3c3c3c;
+}
+
+.dark-mode .tab {
+    -fx-background-color: #4a4a4a;
+}
+
+.dark-mode .tab .tab-label {
+    -fx-text-fill: #ecf0f1;
+}
