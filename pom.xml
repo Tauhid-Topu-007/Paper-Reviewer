@@ -62,6 +62,14 @@
       <version>5.2.3</version>
     </dependency>
 
+    <!-- Source: https://mvnrepository.com/artifact/org.webjars.npm/pdfjs-dist -->
+    <dependency>
+      <groupId>org.webjars.npm</groupId>
+      <artifactId>pdfjs-dist</artifactId>
+      <version>2.16.105</version>
+      <scope>compile</scope>
+    </dependency>
+
     <!-- iText 5 (Simple, no module issues) -->
     <dependency>
       <groupId>com.itextpdf</groupId>

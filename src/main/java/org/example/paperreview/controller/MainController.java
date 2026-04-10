@@ -15,6 +15,7 @@ import org.example.paperreview.model.ExtractedInfo;
 import org.example.paperreview.service.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainController {
@@ -78,6 +79,7 @@ public class MainController {
     private ExportService exportService;
     private PaperAnalysis currentAnalysis;
     private File currentPDFFile;
+    private boolean pdfViewerLoaded = false;
 
     @FXML
     public void initialize() {
@@ -240,14 +242,207 @@ public class MainController {
     }
 
     private void loadPDFPreview(File file) {
-        pdfPreview.getEngine().loadContent(
-                "<html><body style='font-family: Arial; padding: 20px;'>" +
-                        "<h2>PDF Loaded Successfully</h2>" +
-                        "<p>File: " + file.getName() + "</p>" +
-                        "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
-                        "<p>Click 'Analyze Paper' to extract comprehensive information</p>" +
-                        "</body></html>"
+        try {
+            // Convert PDF file to data URL for PDF.js
+            String pdfDataUrl = "file:///" + file.getAbsolutePath().replace("\\", "/");
+
+            // Load the PDF.js viewer HTML
+            java.net.URL viewerUrl = getClass().getResource("/org/example/paperreview/pdf-viewer.html");
+            if (viewerUrl != null) {
+                pdfPreview.getEngine().load(viewerUrl.toExternalForm());
+                pdfViewerLoaded = false;
+
+                // Wait for page to load then load the PDF
+                pdfPreview.getEngine().getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+                    if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
+                        pdfViewerLoaded = true;
+                        String script = String.format(
+                                "if (typeof loadPDFFromJava !== 'undefined') {" +
+                                        "  loadPDFFromJava('%s');" +
+                                        "}",
+                                pdfDataUrl
+                        );
+                        Platform.runLater(() -> pdfPreview.getEngine().executeScript(script));
+                    }
+                });
+            } else {
+                // Fallback to simple HTML view
+                pdfPreview.getEngine().loadContent(
+                        "<html><body style='font-family: Arial; padding: 20px;'>" +
+                                "<h2>PDF Loaded Successfully</h2>" +
+                                "<p>File: " + file.getName() + "</p>" +
+                                "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
+                                "<p style='color: orange;'>Note: Advanced highlighting requires internet connection for PDF.js library</p>" +
+                                "<p>Click 'Highlight Extracted Info' to see extracted information highlighted</p>" +
+                                "</body></html>"
+                );
+                pdfViewerLoaded = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            pdfPreview.getEngine().loadContent(
+                    "<html><body style='font-family: Arial; padding: 20px;'>" +
+                            "<h2>PDF Viewer Error</h2>" +
+                            "<p>Could not load PDF viewer: " + e.getMessage() + "</p>" +
+                            "<p>File: " + file.getName() + "</p>" +
+                            "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
+                            "</body></html>"
+            );
+            pdfViewerLoaded = true;
+        }
+    }
+
+    @FXML
+    private void handleHighlightExtractedInfo() {
+        if (currentAnalysis == null) {
+            showError("No Analysis", "Please analyze a paper first");
+            return;
+        }
+
+        if (currentPDFFile == null) {
+            showError("No PDF", "Please load a PDF file first");
+            return;
+        }
+
+        if (!pdfViewerLoaded) {
+            showError("PDF Viewer Not Ready", "Please wait for the PDF viewer to load completely");
+            return;
+        }
+
+        statusLabel.setText("Preparing highlights for extracted information...");
+
+        // Create highlights data from extracted information
+        ExtractedInfo info = currentAnalysis.getExtractedInfo();
+        List<HighlightData> highlights = new ArrayList<>();
+
+        // Highlight research problem
+        if (info.getResearchProblem() != null && !info.getResearchProblem().equals("Not clearly stated")) {
+            highlights.add(new HighlightData(extractKeyPhrases(info.getResearchProblem()), 1, "#FFEB3B"));
+        }
+
+        // Highlight research gap
+        if (info.getResearchGap() != null && !info.getResearchGap().equals("Not explicitly stated")) {
+            highlights.add(new HighlightData(extractKeyPhrases(info.getResearchGap()), 1, "#FFC107"));
+        }
+
+        // Highlight methodology
+        if (info.getMethodology() != null && !info.getMethodology().equals("Not clearly described")) {
+            highlights.add(new HighlightData(extractKeyPhrases(info.getMethodology()), 2, "#4CAF50"));
+        }
+
+        // Highlight key findings
+        if (info.getKeyFindings() != null && !info.getKeyFindings().isEmpty()) {
+            for (String finding : info.getKeyFindings()) {
+                if (finding != null && !finding.equals("Key findings not clearly presented")) {
+                    highlights.add(new HighlightData(extractKeyPhrases(finding), 3, "#2196F3"));
+                }
+            }
+        }
+
+        // Highlight limitations
+        if (info.getLimitations() != null && !info.getLimitations().equals("Not explicitly stated")) {
+            highlights.add(new HighlightData(extractKeyPhrases(info.getLimitations()), 4, "#F44336"));
+        }
+
+        // Highlight future work
+        if (info.getFutureWork() != null && !info.getFutureWork().equals("Not discussed")) {
+            highlights.add(new HighlightData(extractKeyPhrases(info.getFutureWork()), 5, "#9C27B0"));
+        }
+
+        // Highlight abstract
+        if (info.getAbstractText() != null && !info.getAbstractText().equals("Abstract not available")) {
+            highlights.add(new HighlightData(extractKeyPhrases(info.getAbstractText()), 1, "#E1BEE7"));
+        }
+
+        // Convert to JSON and send to PDF viewer
+        String highlightsJson = convertHighlightsToJson(highlights);
+
+        // Execute JavaScript in WebView to highlight
+        String script = String.format(
+                "if (typeof highlightFromJava !== 'undefined') {" +
+                        "  highlightFromJava('%s');" +
+                        "} else {" +
+                        "  console.log('Highlight function not available');" +
+                        "  alert('PDF viewer not fully loaded. Please wait and try again.');" +
+                        "}",
+                escapeJson(highlightsJson)
         );
+
+        pdfPreview.getEngine().executeScript(script);
+        statusLabel.setText("Highlights applied to PDF!");
+        showInfo("Highlight Complete", "Extracted information has been highlighted in the PDF viewer.\n\nColor Legend:\n• Yellow: Research Problem\n• Orange: Research Gap\n• Green: Methodology\n• Blue: Key Findings\n• Red: Limitations\n• Purple: Future Work\n• Lavender: Abstract");
+    }
+
+    // Helper class for highlight data
+    private static class HighlightData {
+        List<String> texts;
+        int page;
+        String color;
+
+        HighlightData(List<String> texts, int page, String color) {
+            this.texts = texts;
+            this.page = page;
+            this.color = color;
+        }
+    }
+
+    // Extract key phrases from text (split into meaningful chunks)
+    private List<String> extractKeyPhrases(String text) {
+        List<String> phrases = new ArrayList<>();
+        if (text == null || text.isEmpty()) return phrases;
+
+        // Split by sentences
+        String[] sentences = text.split("[.!?]+");
+        for (String sentence : sentences) {
+            String trimmed = sentence.trim();
+            if (trimmed.length() > 15 && trimmed.length() < 200) {
+                phrases.add(trimmed);
+            }
+        }
+
+        // If no sentences found, add the whole text
+        if (phrases.isEmpty() && text.length() > 15) {
+            phrases.add(text.substring(0, Math.min(200, text.length())));
+        }
+
+        return phrases;
+    }
+
+    // Convert highlights to JSON
+    private String convertHighlightsToJson(List<HighlightData> highlights) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < highlights.size(); i++) {
+            HighlightData h = highlights.get(i);
+            if (i > 0) json.append(",");
+            json.append("{");
+            json.append("\"texts\":").append(convertTextsToJson(h.texts));
+            json.append(",\"page\":").append(h.page);
+            json.append(",\"color\":\"").append(h.color).append("\"");
+            json.append("}");
+        }
+        json.append("]");
+        return json.toString();
+    }
+
+    // Convert texts list to JSON array
+    private String convertTextsToJson(List<String> texts) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < texts.size(); i++) {
+            if (i > 0) json.append(",");
+            json.append("\"").append(escapeJson(texts.get(i))).append("\"");
+        }
+        json.append("]");
+        return json.toString();
+    }
+
+    // Escape JSON string
+    private String escapeJson(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     @FXML
@@ -350,7 +545,7 @@ public class MainController {
     }
 
     private List<String> generateImprovements(List<String> weaknesses, ExtractedInfo info) {
-        List<String> improvements = new java.util.ArrayList<>();
+        List<String> improvements = new ArrayList<>();
 
         for (String weakness : weaknesses) {
             if (weakness.contains("sample size")) {
@@ -631,7 +826,7 @@ public class MainController {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About");
         alert.setHeaderText("Academic Paper Review Assistant");
-        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nEnhanced Features:\n- Comprehensive information extraction\n- Advanced NLP-based analysis\n- Quality assessment with recommendations\n- Multiple export formats (CSV, DOCX, PDF)\n- Paper metadata extraction\n- Readability analysis\n- Custom window controls\n- Dark/Light mode support");
+        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nEnhanced Features:\n- Comprehensive information extraction\n- Advanced NLP-based analysis\n- Quality assessment with recommendations\n- Multiple export formats (CSV, DOCX, PDF)\n- PDF highlighting of extracted information\n- Paper metadata extraction\n- Readability analysis\n- Custom window controls\n- Dark/Light mode support");
         alert.showAndWait();
     }
 
@@ -643,9 +838,18 @@ public class MainController {
         alert.setContentText("1. Click 'Upload PDF' to select a research paper\n" +
                 "2. Click 'Analyze Paper' to extract comprehensive information\n" +
                 "3. View extracted information in the tabs\n" +
-                "4. Check quality assessment and recommendations\n" +
-                "5. Export results using the export button\n" +
-                "6. Use the custom title bar buttons to control the window\n\n" +
+                "4. Click 'Highlight Extracted Info' to see where information was found in the PDF\n" +
+                "5. Check quality assessment and recommendations\n" +
+                "6. Export results using the export button\n" +
+                "7. Use the custom title bar buttons to control the window\n\n" +
+                "Highlight Colors:\n" +
+                "• Yellow: Research Problem\n" +
+                "• Orange: Research Gap\n" +
+                "• Green: Methodology\n" +
+                "• Blue: Key Findings\n" +
+                "• Red: Limitations\n" +
+                "• Purple: Future Work\n" +
+                "• Lavender: Abstract\n\n" +
                 "The analysis extracts:\n" +
                 "• Basic paper information (title, authors, abstract, keywords)\n" +
                 "• Research components (problem, gap, questions, hypothesis)\n" +

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Viewer with Highlighting</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        #toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #333;
+            color: white;
+            padding: 10px;
+            z-index: 1000;
+            display: none;
+        }
+        #viewerContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+        }
+        .highlight {
+            background-color: yellow;
+            color: black;
+            border-radius: 3px;
+            transition: background-color 0.3s;
+        }
+        .highlight:hover {
+            background-color: #ffeb3b;
+            cursor: pointer;
+        }
+        .highlight-info {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1001;
+            display: none;
+        }
+        .control-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            z-index: 1001;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .control-panel button {
+            margin: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .search-box {
+            padding: 5px;
+            margin: 5px;
+            width: 200px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 0;
+        let highlights = [];
+        let currentHighlights = [];
+
+        // Function to load PDF
+        function loadPDF(url) {
+            const loadingTask = pdfjsLib.getDocument(url);
+            loadingTask.promise.then(function(pdf) {
+                pdfDoc = pdf;
+                totalPages = pdf.numPages;
+                document.getElementById('totalPages').textContent = totalPages;
+                renderPage(currentPage);
+                document.getElementById('toolbar').style.display = 'block';
+            }).catch(function(error) {
+                console.error('Error loading PDF:', error);
+                document.body.innerHTML = '<div style="padding: 20px; color: red;">Error loading PDF: ' + error.message + '</div>';
+            });
+        }
+
+        // Function to render a page
+        function renderPage(pageNum) {
+            if (!pdfDoc) return;
+
+            pdfDoc.getPage(pageNum).then(function(page) {
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+
+                const renderTask = page.render(renderContext);
+                renderTask.promise.then(function() {
+                    const viewerContainer = document.getElementById('viewerContainer');
+                    viewerContainer.innerHTML = '';
+                    viewerContainer.appendChild(canvas);
+
+                    // Apply highlights after rendering
+                    applyHighlightsToCanvas(canvas, pageNum);
+                });
+            });
+        }
+
+        // Function to apply highlights
+        function applyHighlightsToCanvas(canvas, pageNum) {
+            if (!highlights.length) return;
+
+            const pageHighlights = highlights.filter(h => h.page === pageNum);
+            if (!pageHighlights.length) return;
+
+            const ctx = canvas.getContext('2d');
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+
+            pageHighlights.forEach(highlight => {
+                if (highlight.positions && highlight.positions.length) {
+                    highlight.positions.forEach(pos => {
+                        ctx.fillStyle = highlight.color || 'yellow';
+                        ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
+                    });
+                }
+            });
+
+            ctx.restore();
+        }
+
+        // Function to add highlight
+        function addHighlight(text, page, color = 'yellow') {
+            if (!pdfDoc) return;
+
+            pdfDoc.getPage(page).then(function(pageData) {
+                const viewport = pageData.getViewport({ scale: 1.5 });
+
+                // Search for text and get positions
+                pageData.getTextContent().then(function(textContent) {
+                    const textItems = textContent.items;
+                    const positions = [];
+                    let found = false;
+
+                    for (let i = 0; i < textItems.length; i++) {
+                        const item = textItems[i];
+                        if (item.str && item.str.toLowerCase().includes(text.toLowerCase())) {
+                            const transform = item.transform;
+                            const x = transform[4];
+                            const y = viewport.height - transform[5];
+                            const width = item.width * 1.5;
+                            const height = item.height * 1.5;
+
+                            positions.push({
+                                x: x,
+                                y: y - height,
+                                width: width,
+                                height: height
+                            });
+                            found = true;
+                        }
+                    }
+
+                    if (found) {
+                        highlights.push({
+                            text: text,
+                            page: page,
+                            positions: positions,
+                            color: color
+                        });
+                        renderPage(currentPage);
+                    }
+                });
+            });
+        }
+
+        // Function to highlight multiple texts
+        function highlightTexts(texts, page, color) {
+            if (!texts || !texts.length) return;
+
+            texts.forEach(text => {
+                if (text && text.length > 5) {
+                    addHighlight(text, page, color);
+                }
+            });
+        }
+
+        // Function to clear all highlights
+        function clearHighlights() {
+            highlights = [];
+            currentHighlights = [];
+            renderPage(currentPage);
+        }
+
+        // Navigation functions
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+                updatePageInfo();
+            }
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+                updatePageInfo();
+            }
+        }
+
+        function goToPage(page) {
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                renderPage(currentPage);
+                updatePageInfo();
+            }
+        }
+
+        function updatePageInfo() {
+            document.getElementById('currentPage').textContent = currentPage;
+        }
+
+        // Function to load PDF from Java
+        window.loadPDFFromJava = function(pdfDataUrl) {
+            loadPDF(pdfDataUrl);
+        };
+
+        // Function to highlight from Java
+        window.highlightFromJava = function(highlightsData) {
+            clearHighlights();
+            const data = JSON.parse(highlightsData);
+
+            data.forEach(item => {
+                if (item.texts && item.texts.length) {
+                    highlightTexts(item.texts, item.page, item.color);
+                }
+            });
+
+            // Show control panel
+            document.getElementById('controlPanel').style.display = 'block';
+            document.getElementById('highlightInfo').style.display = 'block';
+            document.getElementById('highlightInfo').innerHTML =
+                'Highlighted ' + highlights.length + ' sections on ' + new Set(highlights.map(h => h.page)).size + ' pages';
+        };
+
+        // Function to search and highlight
+        window.searchAndHighlight = function(searchText) {
+            clearHighlights();
+            for (let i = 1; i <= totalPages; i++) {
+                addHighlight(searchText, i, '#FFEB3B');
+            }
+            renderPage(currentPage);
+        };
+
+        // Initialize
+        window.onload = function() {
+            // Setup event listeners
+            document.getElementById('nextBtn')?.addEventListener('click', nextPage);
+            document.getElementById('prevBtn')?.addEventListener('click', prevPage);
+            document.getElementById('clearHighlightsBtn')?.addEventListener('click', clearHighlights);
+            document.getElementById('searchBtn')?.addEventListener('click', function() {
+                const searchText = document.getElementById('searchInput').value;
+                if (searchText) {
+                    searchAndHighlight(searchText);
+                }
+            });
+        };
+    </script>
+</head>
+<body>
+<div id="toolbar">
+    <button id="prevBtn">◀ Previous</button>
+    <span>Page <span id="currentPage">1</span> of <span id="totalPages">0</span></span>
+    <button id="nextBtn">Next ▶</button>
+    <input type="number" id="pageInput" style="width: 60px;" placeholder="Page">
+    <button id="goToBtn">Go</button>
+    <button id="clearHighlightsBtn" style="background-color: #f44336; color: white;">Clear Highlights</button>
+    <div style="display: inline-block; margin-left: 20px;">
+        <input type="text" id="searchInput" placeholder="Search text..." style="padding: 5px;">
+        <button id="searchBtn">Search & Highlight</button>
+    </div>
+</div>
+<div id="viewerContainer"></div>
+<div id="controlPanel" class="control-panel">
+    <strong>PDF Highlighting Controls</strong>
+    <hr>
+    <button id="clearHighlightsBtn2">Clear All Highlights</button>
+</div>
+<div id="highlightInfo" class="highlight-info"></div>
+
+<script>
+    // Additional setup for Go to Page button
+    document.getElementById('goToBtn')?.addEventListener('click', function() {
+        const page = parseInt(document.getElementById('pageInput').value);
+        if (!isNaN(page)) {
+            goToPage(page);
+        }
+    });
+
+    document.getElementById('clearHighlightsBtn2')?.addEventListener('click', function() {
+        clearHighlights();
+        document.getElementById('highlightInfo').style.display = 'none';
+    });
+</script>
+</body>
+</html>
