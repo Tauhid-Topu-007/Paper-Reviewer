@@ -3,11 +3,13 @@ package org.example.paperreview.controller;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import org.example.paperreview.model.PaperAnalysis;
 import org.example.paperreview.model.ExtractedInfo;
@@ -50,8 +52,8 @@ public class MainController {
     private double xOffset = 0;
     private double yOffset = 0;
     private boolean isMaximized = false;
-    private double previousWidth = 1400;
-    private double previousHeight = 900;
+    private double previousWidth = 1200;
+    private double previousHeight = 800;
     private double previousX = 0;
     private double previousY = 0;
 
@@ -75,18 +77,16 @@ public class MainController {
         weaknessesList.setPlaceholder(new Label("No weaknesses identified yet"));
         futureScopeList.setPlaceholder(new Label("No future scope identified yet"));
 
-        // Make the window draggable from the title bar
-        setupWindowDragging();
+        // Setup window dragging after scene is available
+        Platform.runLater(() -> setupWindowDragging());
     }
 
     private void setupWindowDragging() {
-        // Get the title bar HBox (you'll need to add an ID to it in FXML)
-        // Alternative approach: make the entire top VBox draggable
         Scene scene = pdfPreview.getScene();
         if (scene != null) {
             scene.setOnMousePressed(event -> {
                 Stage stage = (Stage) pdfPreview.getScene().getWindow();
-                if (!isMaximized && event.getY() <= 40) { // Only drag if clicking near top
+                if (!isMaximized && event.getY() <= 40) {
                     xOffset = stage.getX() - event.getScreenX();
                     yOffset = stage.getY() - event.getScreenY();
                 }
@@ -112,6 +112,8 @@ public class MainController {
     @FXML
     private void handleMaximize() {
         Stage stage = (Stage) pdfPreview.getScene().getWindow();
+        Screen screen = Screen.getPrimary();
+        Rectangle2D bounds = screen.getVisualBounds();
 
         if (!isMaximized) {
             // Store current position and size
@@ -120,8 +122,11 @@ public class MainController {
             previousX = stage.getX();
             previousY = stage.getY();
 
-            // Maximize to screen bounds
-            stage.setMaximized(true);
+            // Maximize to screen bounds (accounting for taskbar)
+            stage.setX(bounds.getMinX());
+            stage.setY(bounds.getMinY());
+            stage.setWidth(bounds.getWidth());
+            stage.setHeight(bounds.getHeight());
             isMaximized = true;
 
             // Change button text
@@ -131,11 +136,10 @@ public class MainController {
             }
         } else {
             // Restore to previous size
-            stage.setMaximized(false);
-            stage.setWidth(previousWidth);
-            stage.setHeight(previousHeight);
             stage.setX(previousX);
             stage.setY(previousY);
+            stage.setWidth(previousWidth);
+            stage.setHeight(previousHeight);
             isMaximized = false;
 
             // Change button text
@@ -151,7 +155,7 @@ public class MainController {
         Platform.exit();
     }
 
-    // Add hover effects for window buttons (optional)
+    // Hover effects for window buttons
     @FXML
     private void handleMinimizeEnter() {
         Button minimizeButton = (Button) pdfPreview.getScene().lookup("#minimizeButton");
@@ -200,25 +204,8 @@ public class MainController {
         }
     }
 
-    // Add resize functionality
-    @FXML
-    private void handleResizeStart(MouseEvent event) {
-        Stage stage = (Stage) pdfPreview.getScene().getWindow();
-        double startX = event.getScreenX();
-        double startY = event.getScreenY();
-        double startWidth = stage.getWidth();
-        double startHeight = stage.getHeight();
-
-        // You can implement edge detection for resizing
-        // This is a simplified version
-        stage.setWidth(startWidth);
-        stage.setHeight(startHeight);
-    }
-
-    // Your existing methods continue here...
     @FXML
     private void handleOpenPDF() {
-        // Your existing code
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open PDF File");
         fileChooser.getExtensionFilters().add(
@@ -256,7 +243,6 @@ public class MainController {
 
     @FXML
     private void handleAnalyze() {
-        // Your existing code
         if (currentPDFFile == null) {
             showError("No PDF Loaded", "Please upload a PDF file first");
             return;
@@ -319,7 +305,10 @@ public class MainController {
             progressIndicator.setVisible(false);
             statusLabel.textProperty().unbind();
             statusLabel.setText("Analysis failed");
-            showError("Analysis Failed", analysisTask.getException().getMessage());
+            Throwable exception = analysisTask.getException();
+            if (exception != null) {
+                showError("Analysis Failed", exception.getMessage());
+            }
         });
 
         new Thread(analysisTask).start();
@@ -330,36 +319,49 @@ public class MainController {
 
         Platform.runLater(() -> {
             // Extracted information
-            paperTitleLabel.setText(info.getPaperTitle());
-            authorsLabel.setText(info.getAuthors());
-            domainLabel.setText(info.getResearchDomain());
-            problemLabel.setText(info.getResearchProblem());
-            gapLabel.setText(info.getResearchGap());
-            questionsLabel.setText(String.join("\n", info.getResearchQuestions()));
-            hypothesisLabel.setText(info.getResearchHypothesis());
-            methodologyLabel.setText(info.getMethodology());
-            dataCollectionLabel.setText(info.getDataCollectionMethods());
-            findingsLabel.setText(String.join("\n", info.getKeyFindings()));
-            citationsLabel.setText(String.valueOf(info.getCitations().size()) + " citations found");
-            publicationLabel.setText(info.getPublicationCategory());
+            paperTitleLabel.setText(info.getPaperTitle() != null ? info.getPaperTitle() : "N/A");
+            authorsLabel.setText(info.getAuthors() != null ? info.getAuthors() : "N/A");
+            domainLabel.setText(info.getResearchDomain() != null ? info.getResearchDomain() : "N/A");
+            problemLabel.setText(info.getResearchProblem() != null ? info.getResearchProblem() : "N/A");
+            gapLabel.setText(info.getResearchGap() != null ? info.getResearchGap() : "N/A");
+            questionsLabel.setText(info.getResearchQuestions() != null && !info.getResearchQuestions().isEmpty() ?
+                    String.join("\n", info.getResearchQuestions()) : "N/A");
+            hypothesisLabel.setText(info.getResearchHypothesis() != null ? info.getResearchHypothesis() : "N/A");
+            methodologyLabel.setText(info.getMethodology() != null ? info.getMethodology() : "N/A");
+            dataCollectionLabel.setText(info.getDataCollectionMethods() != null ? info.getDataCollectionMethods() : "N/A");
+            findingsLabel.setText(info.getKeyFindings() != null && !info.getKeyFindings().isEmpty() ?
+                    String.join("\n", info.getKeyFindings()) : "N/A");
+            citationsLabel.setText(info.getCitations() != null ? info.getCitations().size() + " citations found" : "0 citations found");
+            publicationLabel.setText(info.getPublicationCategory() != null ? info.getPublicationCategory() : "N/A");
 
             // Review assistant
-            summaryArea.setText(analysis.getSummary());
+            summaryArea.setText(analysis.getSummary() != null ? analysis.getSummary() : "No summary available");
 
             strengthsList.getItems().clear();
-            strengthsList.getItems().addAll(analysis.getStrengths());
+            if (analysis.getStrengths() != null && !analysis.getStrengths().isEmpty()) {
+                strengthsList.getItems().addAll(analysis.getStrengths());
+            } else {
+                strengthsList.setPlaceholder(new Label("No strengths identified"));
+            }
 
             weaknessesList.getItems().clear();
-            weaknessesList.getItems().addAll(analysis.getWeaknesses());
+            if (analysis.getWeaknesses() != null && !analysis.getWeaknesses().isEmpty()) {
+                weaknessesList.getItems().addAll(analysis.getWeaknesses());
+            } else {
+                weaknessesList.setPlaceholder(new Label("No weaknesses identified"));
+            }
 
             futureScopeList.getItems().clear();
-            futureScopeList.getItems().addAll(analysis.getFutureResearchScope());
+            if (analysis.getFutureResearchScope() != null && !analysis.getFutureResearchScope().isEmpty()) {
+                futureScopeList.getItems().addAll(analysis.getFutureResearchScope());
+            } else {
+                futureScopeList.setPlaceholder(new Label("No future scope identified"));
+            }
 
             qualityScoreBar.setProgress(analysis.getQualityScore() / 100.0);
             qualityScoreLabel.setText(String.format("Quality Score: %.1f/100", analysis.getQualityScore()));
-
-            writingQualityLabel.setText(analysis.getWritingQualityComments());
-            plagiarismLabel.setText(analysis.getPlagiarismRiskIndicator());
+            writingQualityLabel.setText(analysis.getWritingQualityComments() != null ? analysis.getWritingQualityComments() : "N/A");
+            plagiarismLabel.setText(analysis.getPlagiarismRiskIndicator() != null ? analysis.getPlagiarismRiskIndicator() : "N/A");
         });
     }
 
@@ -390,12 +392,14 @@ public class MainController {
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("CSV Files", "*.csv")
         );
+        fileChooser.setInitialFileName("paper_analysis_report.csv");
 
         File file = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
         if (file != null) {
             try {
                 exportService.exportToCSV(currentAnalysis, file.getAbsolutePath());
                 statusLabel.setText("Exported to CSV: " + file.getName());
+                showInfo("Export Successful", "Report exported to " + file.getName());
             } catch (IOException e) {
                 showError("Export Failed", e.getMessage());
             }
@@ -414,12 +418,14 @@ public class MainController {
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("DOCX Files", "*.docx")
         );
+        fileChooser.setInitialFileName("paper_analysis_report.docx");
 
         File file = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
         if (file != null) {
             try {
                 exportService.exportToDOCX(currentAnalysis, file.getAbsolutePath());
                 statusLabel.setText("Exported to DOCX: " + file.getName());
+                showInfo("Export Successful", "Report exported to " + file.getName());
             } catch (IOException e) {
                 showError("Export Failed", e.getMessage());
             }
@@ -438,12 +444,14 @@ public class MainController {
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("PDF Files", "*.pdf")
         );
+        fileChooser.setInitialFileName("paper_analysis_report.pdf");
 
         File file = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
         if (file != null) {
             try {
                 exportService.exportToPDF(currentAnalysis, file.getAbsolutePath());
                 statusLabel.setText("Exported to PDF: " + file.getName());
+                showInfo("Export Successful", "Report exported to " + file.getName());
             } catch (Exception e) {
                 showError("Export Failed", e.getMessage());
             }
@@ -497,16 +505,29 @@ public class MainController {
     @FXML
     private void handleToggleDarkMode() {
         Scene scene = pdfPreview.getScene();
+        String darkModeCSS = "/org/example/paperreview/dark-mode.css";
+
         if (scene.getStylesheets().isEmpty()) {
-            scene.getStylesheets().add(getClass().getResource("/org/example/paperreview/dark-mode.css").toExternalForm());
+            try {
+                if (getClass().getResource(darkModeCSS) != null) {
+                    scene.getStylesheets().add(getClass().getResource(darkModeCSS).toExternalForm());
+                    statusLabel.setText("Dark mode enabled");
+                } else {
+                    showError("CSS Not Found", "Dark mode CSS file not found");
+                }
+            } catch (Exception e) {
+                showError("Error", "Could not load dark mode CSS");
+            }
         } else {
             scene.getStylesheets().clear();
+            statusLabel.setText("Light mode enabled");
         }
     }
 
     @FXML
     private void handleResetView() {
         pdfPreview.getEngine().reload();
+        statusLabel.setText("View reset");
     }
 
     @FXML
@@ -514,7 +535,7 @@ public class MainController {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About");
         alert.setHeaderText("Academic Paper Review Assistant");
-        alert.setContentText("Version 1.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nFeatures:\n- Automatic extraction of research components\n- NLP-based analysis\n- Quality assessment\n- Export capabilities\n- Custom window controls");
+        alert.setContentText("Version 1.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nFeatures:\n- Automatic extraction of research components\n- NLP-based analysis\n- Quality assessment\n- Export capabilities (CSV, DOCX, PDF)\n- Custom window controls\n- Dark/Light mode support");
         alert.showAndWait();
     }
 
@@ -529,7 +550,8 @@ public class MainController {
                 "4. Export results using the export button\n" +
                 "5. Use the custom title bar buttons to minimize, maximize, and close\n" +
                 "6. Drag the title bar to move the window\n" +
-                "7. Resize the window by dragging the edges");
+                "7. Resize the window by dragging the edges\n\n" +
+                "Tip: The analysis may take a few seconds depending on paper length");
         alert.showAndWait();
     }
 
@@ -540,6 +562,14 @@ public class MainController {
 
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void showInfo(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);

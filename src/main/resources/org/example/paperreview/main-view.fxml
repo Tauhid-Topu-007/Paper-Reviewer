@@ -5,7 +5,6 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.web.WebView?>
 <?import javafx.scene.text.Text?>
-<?import javafx.scene.Cursor?>
 
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.paperreview.controller.MainController">
 
@@ -17,25 +16,13 @@
                 <Region HBox.hgrow="ALWAYS"/>
 
                 <!-- Minimize Button -->
-                <Button fx:id="minimizeButton" text="─" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleMinimize">
-                    <tooltip>
-                        <Tooltip text="Minimize"/>
-                    </tooltip>
-                </Button>
+                <Button fx:id="minimizeButton" text="─" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleMinimize"/>
 
                 <!-- Maximize/Restore Button -->
-                <Button fx:id="maximizeButton" text="□" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleMaximize">
-                    <tooltip>
-                        <Tooltip text="Maximize"/>
-                    </tooltip>
-                </Button>
+                <Button fx:id="maximizeButton" text="□" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleMaximize"/>
 
                 <!-- Close Button -->
-                <Button fx:id="closeButton" text="✕" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleClose">
-                    <tooltip>
-                        <Tooltip text="Close"/>
-                    </tooltip>
-                </Button>
+                <Button fx:id="closeButton" text="✕" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;" onAction="#handleClose"/>
             </HBox>
 
             <MenuBar>
@@ -76,7 +63,7 @@
     </top>
 
     <center>
-        <SplitPane dividerPositions="0.4">
+        <SplitPane dividerPositions="0.35" BorderPane.alignment="CENTER">
             <items>
                 <!-- Left Panel - PDF Preview -->
                 <VBox spacing="10">
@@ -84,14 +71,14 @@
                         <Insets top="10" right="10" bottom="10" left="10"/>
                     </padding>
                     <Label text="PDF Preview" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                    <WebView fx:id="pdfPreview" prefHeight="600"/>
+                    <WebView fx:id="pdfPreview" VBox.vgrow="ALWAYS" prefHeight="400"/>
                 </VBox>
 
                 <!-- Right Panel - Analysis Results -->
-                <TabPane tabClosingPolicy="UNAVAILABLE">
+                <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
                     <Tab text="Extracted Information">
-                        <ScrollPane>
-                            <VBox spacing="10">
+                        <ScrollPane fitToWidth="true">
+                            <VBox spacing="8">
                                 <padding>
                                     <Insets top="10" right="10" bottom="10" left="10"/>
                                 </padding>
@@ -135,32 +122,34 @@
                     </Tab>
 
                     <Tab text="Review Assistant">
-                        <VBox spacing="10">
-                            <padding>
-                                <Insets top="10" right="10" bottom="10" left="10"/>
-                            </padding>
-                            <Label text="Executive Summary" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                            <TextArea fx:id="summaryArea" wrapText="true" prefHeight="100"/>
+                        <ScrollPane fitToWidth="true">
+                            <VBox spacing="8">
+                                <padding>
+                                    <Insets top="10" right="10" bottom="10" left="10"/>
+                                </padding>
+                                <Label text="Executive Summary" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                                <TextArea fx:id="summaryArea" wrapText="true" prefHeight="100"/>
 
-                            <Label text="Strengths" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                            <ListView fx:id="strengthsList" prefHeight="100"/>
+                                <Label text="Strengths" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                                <ListView fx:id="strengthsList" prefHeight="100"/>
 
-                            <Label text="Weaknesses" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                            <ListView fx:id="weaknessesList" prefHeight="100"/>
+                                <Label text="Weaknesses" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                                <ListView fx:id="weaknessesList" prefHeight="100"/>
 
-                            <Label text="Future Research Scope" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                            <ListView fx:id="futureScopeList" prefHeight="100"/>
+                                <Label text="Future Research Scope" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                                <ListView fx:id="futureScopeList" prefHeight="100"/>
 
-                            <Label text="Quality Assessment" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                            <ProgressBar fx:id="qualityScoreBar" prefWidth="300"/>
-                            <Label fx:id="qualityScoreLabel"/>
+                                <Label text="Quality Assessment" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                                <ProgressBar fx:id="qualityScoreBar" prefWidth="300"/>
+                                <Label fx:id="qualityScoreLabel"/>
 
-                            <Label text="Writing Quality" style="-fx-font-weight: bold;"/>
-                            <Label fx:id="writingQualityLabel" wrapText="true"/>
+                                <Label text="Writing Quality" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="writingQualityLabel" wrapText="true"/>
 
-                            <Label text="Plagiarism Risk" style="-fx-font-weight: bold;"/>
-                            <Label fx:id="plagiarismLabel" wrapText="true"/>
-                        </VBox>
+                                <Label text="Plagiarism Risk" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="plagiarismLabel" wrapText="true"/>
+                            </VBox>
+                        </ScrollPane>
                     </Tab>
                 </TabPane>
             </items>
