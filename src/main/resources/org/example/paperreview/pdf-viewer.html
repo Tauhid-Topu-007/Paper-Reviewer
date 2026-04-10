@@ -4,221 +4,358 @@
     <meta charset="UTF-8">
     <title>PDF Viewer with Highlighting</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
+            box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f5f5f5;
+            overflow: hidden;
+        }
+
         #toolbar {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            background: #333;
+            background: linear-gradient(135deg, #2c3e50, #34495e);
             color: white;
-            padding: 10px;
+            padding: 10px 15px;
             z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             display: none;
+            flex-wrap: wrap;
+            gap: 10px;
         }
+
+        #toolbar button {
+            background: #3498db;
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        #toolbar button:hover {
+            background: #2980b9;
+            transform: scale(1.02);
+        }
+
+        #toolbar .danger-btn {
+            background: #e74c3c;
+        }
+
+        #toolbar .danger-btn:hover {
+            background: #c0392b;
+        }
+
+        #toolbar .success-btn {
+            background: #27ae60;
+        }
+
+        #toolbar .success-btn:hover {
+            background: #229954;
+        }
+
+        #pageInfo {
+            display: inline-block;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        #searchInput {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            width: 200px;
+        }
+
         #viewerContainer {
             position: absolute;
-            top: 0;
+            top: 50px;
             left: 0;
             right: 0;
             bottom: 0;
             overflow: auto;
+            background: #e0e0e0;
+            padding: 20px;
         }
-        .highlight {
-            background-color: yellow;
-            color: black;
-            border-radius: 3px;
-            transition: background-color 0.3s;
+
+        .page-container {
+            position: relative;
+            margin: 0 auto 20px auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            background: white;
         }
-        .highlight:hover {
-            background-color: #ffeb3b;
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .highlight-overlay {
+            position: absolute;
+            pointer-events: none;
+            background-color: rgba(255, 255, 0, 0.4);
+            border-radius: 2px;
+            transition: all 0.2s;
+        }
+
+        .highlight-overlay:hover {
+            background-color: rgba(255, 235, 59, 0.7);
+            pointer-events: auto;
             cursor: pointer;
         }
-        .highlight-info {
+
+        .highlight-tooltip {
+            position: fixed;
+            background: #2c3e50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 2000;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        #legend {
             position: fixed;
             bottom: 10px;
             right: 10px;
             background: rgba(0,0,0,0.8);
             color: white;
-            padding: 8px 12px;
-            border-radius: 5px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 11px;
+            z-index: 1001;
+            display: none;
+            max-width: 250px;
+        }
+
+        #legend h4 {
+            margin-bottom: 5px;
             font-size: 12px;
-            z-index: 1001;
-            display: none;
         }
-        .control-panel {
+
+        .legend-color {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .legend-item {
+            margin-bottom: 3px;
+            font-size: 10px;
+        }
+
+        .summary-panel {
             position: fixed;
-            top: 10px;
-            right: 10px;
+            left: 10px;
+            bottom: 10px;
             background: white;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
             padding: 10px;
+            max-width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
             z-index: 1001;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .control-panel button {
-            margin: 5px;
-            padding: 5px 10px;
-            cursor: pointer;
+
+        .summary-panel h4 {
+            margin-bottom: 5px;
+            color: #2c3e50;
         }
-        .search-box {
-            padding: 5px;
-            margin: 5px;
-            width: 200px;
+
+        .highlight-badge {
+            background: #FFEB3B;
+            color: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script>
-        // Configure PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         let pdfDoc = null;
         let currentPage = 1;
         let totalPages = 0;
+        let scale = 1.5;
         let highlights = [];
         let currentHighlights = [];
 
-        // Function to load PDF
         function loadPDF(url) {
             const loadingTask = pdfjsLib.getDocument(url);
             loadingTask.promise.then(function(pdf) {
                 pdfDoc = pdf;
                 totalPages = pdf.numPages;
                 document.getElementById('totalPages').textContent = totalPages;
-                renderPage(currentPage);
-                document.getElementById('toolbar').style.display = 'block';
+                document.getElementById('toolbar').style.display = 'flex';
+                document.getElementById('legend').style.display = 'block';
+                renderAllPages();
             }).catch(function(error) {
                 console.error('Error loading PDF:', error);
-                document.body.innerHTML = '<div style="padding: 20px; color: red;">Error loading PDF: ' + error.message + '</div>';
+                document.getElementById('viewerContainer').innerHTML =
+                    '<div style="padding: 20px; color: red; text-align: center;">Error loading PDF: ' + error.message + '</div>';
             });
         }
 
-        // Function to render a page
-        function renderPage(pageNum) {
-            if (!pdfDoc) return;
+        function renderAllPages() {
+            const container = document.getElementById('viewerContainer');
+            container.innerHTML = '';
 
+            for (let i = 1; i <= totalPages; i++) {
+                renderPage(i, container);
+            }
+        }
+
+        function renderPage(pageNum, container) {
             pdfDoc.getPage(pageNum).then(function(page) {
-                const viewport = page.getViewport({ scale: 1.5 });
+                const viewport = page.getViewport({ scale: scale });
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
+                canvas.style.width = '100%';
+                canvas.style.height = 'auto';
+
+                const pageContainer = document.createElement('div');
+                pageContainer.className = 'page-container';
+                pageContainer.style.width = viewport.width + 'px';
+                pageContainer.id = 'page-' + pageNum;
 
                 const renderContext = {
                     canvasContext: context,
                     viewport: viewport
                 };
 
-                const renderTask = page.render(renderContext);
-                renderTask.promise.then(function() {
-                    const viewerContainer = document.getElementById('viewerContainer');
-                    viewerContainer.innerHTML = '';
-                    viewerContainer.appendChild(canvas);
+                page.render(renderContext).promise.then(function() {
+                    pageContainer.appendChild(canvas);
+                    container.appendChild(pageContainer);
 
-                    // Apply highlights after rendering
-                    applyHighlightsToCanvas(canvas, pageNum);
+                    // Apply highlights after page is rendered
+                    applyHighlightsToPage(pageNum, pageContainer, viewport);
                 });
             });
         }
 
-        // Function to apply highlights
-        function applyHighlightsToCanvas(canvas, pageNum) {
-            if (!highlights.length) return;
-
+        function applyHighlightsToPage(pageNum, container, viewport) {
             const pageHighlights = highlights.filter(h => h.page === pageNum);
             if (!pageHighlights.length) return;
 
-            const ctx = canvas.getContext('2d');
-            ctx.save();
-            ctx.globalAlpha = 0.5;
-
-            pageHighlights.forEach(highlight => {
-                if (highlight.positions && highlight.positions.length) {
-                    highlight.positions.forEach(pos => {
-                        ctx.fillStyle = highlight.color || 'yellow';
-                        ctx.fillRect(pos.x, pos.y, pos.width, pos.height);
-                    });
-                }
-            });
-
-            ctx.restore();
-        }
-
-        // Function to add highlight
-        function addHighlight(text, page, color = 'yellow') {
-            if (!pdfDoc) return;
-
-            pdfDoc.getPage(page).then(function(pageData) {
-                const viewport = pageData.getViewport({ scale: 1.5 });
-
-                // Search for text and get positions
-                pageData.getTextContent().then(function(textContent) {
+            // Get text content for accurate positioning
+            pdfDoc.getPage(pageNum).then(function(page) {
+                page.getTextContent().then(function(textContent) {
                     const textItems = textContent.items;
-                    const positions = [];
-                    let found = false;
 
-                    for (let i = 0; i < textItems.length; i++) {
-                        const item = textItems[i];
-                        if (item.str && item.str.toLowerCase().includes(text.toLowerCase())) {
-                            const transform = item.transform;
-                            const x = transform[4];
-                            const y = viewport.height - transform[5];
-                            const width = item.width * 1.5;
-                            const height = item.height * 1.5;
+                    pageHighlights.forEach(highlight => {
+                        highlight.texts.forEach(highlightText => {
+                            // Find matching text in the page
+                            for (let i = 0; i < textItems.length; i++) {
+                                const item = textItems[i];
+                                if (item.str && item.str.toLowerCase().includes(highlightText.toLowerCase())) {
+                                    const transform = item.transform;
+                                    const x = transform[4] * scale;
+                                    const y = viewport.height - (transform[5] * scale);
+                                    const width = item.width * scale;
+                                    const height = item.height * scale;
 
-                            positions.push({
-                                x: x,
-                                y: y - height,
-                                width: width,
-                                height: height
-                            });
-                            found = true;
-                        }
-                    }
+                                    const overlay = document.createElement('div');
+                                    overlay.className = 'highlight-overlay';
+                                    overlay.style.position = 'absolute';
+                                    overlay.style.left = x + 'px';
+                                    overlay.style.top = (y - height) + 'px';
+                                    overlay.style.width = width + 'px';
+                                    overlay.style.height = height + 'px';
+                                    overlay.style.backgroundColor = highlight.color || 'rgba(255, 255, 0, 0.4)';
+                                    overlay.style.borderRadius = '2px';
+                                    overlay.title = 'Extracted: ' + highlightText.substring(0, 100);
 
-                    if (found) {
-                        highlights.push({
-                            text: text,
-                            page: page,
-                            positions: positions,
-                            color: color
+                                    overlay.addEventListener('mouseenter', function(e) {
+                                        showTooltip(e, '📄 ' + highlightText.substring(0, 150));
+                                    });
+
+                                    overlay.addEventListener('mouseleave', function() {
+                                        hideTooltip();
+                                    });
+
+                                    container.appendChild(overlay);
+                                }
+                            }
                         });
-                        renderPage(currentPage);
-                    }
+                    });
                 });
             });
         }
 
-        // Function to highlight multiple texts
-        function highlightTexts(texts, page, color) {
-            if (!texts || !texts.length) return;
-
-            texts.forEach(text => {
-                if (text && text.length > 5) {
-                    addHighlight(text, page, color);
-                }
-            });
+        function showTooltip(event, text) {
+            let tooltip = document.getElementById('tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'tooltip';
+                tooltip.className = 'highlight-tooltip';
+                document.body.appendChild(tooltip);
+            }
+            tooltip.style.display = 'block';
+            tooltip.style.left = (event.clientX + 10) + 'px';
+            tooltip.style.top = (event.clientY - 30) + 'px';
+            tooltip.textContent = text;
         }
 
-        // Function to clear all highlights
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        }
+
+        function addHighlights(highlightsData) {
+            highlights = highlightsData;
+            renderAllPages();
+            updateHighlightCount();
+        }
+
         function clearHighlights() {
             highlights = [];
-            currentHighlights = [];
-            renderPage(currentPage);
+            renderAllPages();
+            document.getElementById('highlightInfo').style.display = 'none';
         }
 
-        // Navigation functions
+        function updateHighlightCount() {
+            const totalHighlights = highlights.reduce((sum, h) => sum + h.texts.length, 0);
+            const infoDiv = document.getElementById('highlightInfo');
+            if (totalHighlights > 0) {
+                infoDiv.style.display = 'block';
+                infoDiv.innerHTML = '✨ ' + totalHighlights + ' sections highlighted from the summary ✨';
+                setTimeout(() => {
+                    infoDiv.style.opacity = '0.9';
+                }, 100);
+            } else {
+                infoDiv.style.display = 'none';
+            }
+        }
+
         function nextPage() {
             if (currentPage < totalPages) {
                 currentPage++;
-                renderPage(currentPage);
+                scrollToPage(currentPage);
                 updatePageInfo();
             }
         }
@@ -226,16 +363,15 @@
         function prevPage() {
             if (currentPage > 1) {
                 currentPage--;
-                renderPage(currentPage);
+                scrollToPage(currentPage);
                 updatePageInfo();
             }
         }
 
-        function goToPage(page) {
-            if (page >= 1 && page <= totalPages) {
-                currentPage = page;
-                renderPage(currentPage);
-                updatePageInfo();
+        function scrollToPage(pageNum) {
+            const pageElement = document.getElementById('page-' + pageNum);
+            if (pageElement) {
+                pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
 
@@ -243,87 +379,140 @@
             document.getElementById('currentPage').textContent = currentPage;
         }
 
-        // Function to load PDF from Java
-        window.loadPDFFromJava = function(pdfDataUrl) {
-            loadPDF(pdfDataUrl);
+        function goToPage() {
+            const page = parseInt(document.getElementById('pageInput').value);
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                scrollToPage(currentPage);
+                updatePageInfo();
+            }
+        }
+
+        function searchAndHighlight() {
+            const searchText = document.getElementById('searchInput').value;
+            if (!searchText) return;
+
+            const newHighlights = [];
+            for (let i = 1; i <= totalPages; i++) {
+                newHighlights.push({
+                    texts: [searchText],
+                    page: i,
+                    color: 'rgba(255, 235, 59, 0.5)'
+                });
+            }
+            addHighlights(newHighlights);
+        }
+
+        window.loadPDFFromJava = function(url) {
+            loadPDF(url);
         };
 
-        // Function to highlight from Java
-        window.highlightFromJava = function(highlightsData) {
-            clearHighlights();
-            const data = JSON.parse(highlightsData);
+        window.highlightFromJava = function(highlightsJson) {
+            const data = JSON.parse(highlightsJson);
+            const formattedHighlights = [];
 
             data.forEach(item => {
                 if (item.texts && item.texts.length) {
-                    highlightTexts(item.texts, item.page, item.color);
+                    formattedHighlights.push({
+                        texts: item.texts,
+                        page: item.page,
+                        color: item.color || 'rgba(255, 255, 0, 0.4)'
+                    });
                 }
             });
 
-            // Show control panel
-            document.getElementById('controlPanel').style.display = 'block';
-            document.getElementById('highlightInfo').style.display = 'block';
-            document.getElementById('highlightInfo').innerHTML =
-                'Highlighted ' + highlights.length + ' sections on ' + new Set(highlights.map(h => h.page)).size + ' pages';
+            addHighlights(formattedHighlights);
+
+            // Show success message
+            const total = formattedHighlights.reduce((sum, h) => sum + h.texts.length, 0);
+            showNotification('✅ ' + total + ' sections highlighted from the summary!', 'success');
         };
 
-        // Function to search and highlight
-        window.searchAndHighlight = function(searchText) {
-            clearHighlights();
-            for (let i = 1; i <= totalPages; i++) {
-                addHighlight(searchText, i, '#FFEB3B');
-            }
-            renderPage(currentPage);
-        };
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.style.position = 'fixed';
+            notification.style.top = '70px';
+            notification.style.right = '10px';
+            notification.style.background = type === 'success' ? '#27ae60' : '#e74c3c';
+            notification.style.color = 'white';
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '5px';
+            notification.style.zIndex = '2000';
+            notification.style.fontSize = '14px';
+            notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+            notification.innerHTML = message;
+            document.body.appendChild(notification);
 
-        // Initialize
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function zoomIn() {
+            scale += 0.2;
+            renderAllPages();
+        }
+
+        function zoomOut() {
+            scale = Math.max(0.8, scale - 0.2);
+            renderAllPages();
+        }
+
+        function resetZoom() {
+            scale = 1.5;
+            renderAllPages();
+        }
+
         window.onload = function() {
-            // Setup event listeners
             document.getElementById('nextBtn')?.addEventListener('click', nextPage);
             document.getElementById('prevBtn')?.addEventListener('click', prevPage);
+            document.getElementById('goToBtn')?.addEventListener('click', goToPage);
             document.getElementById('clearHighlightsBtn')?.addEventListener('click', clearHighlights);
-            document.getElementById('searchBtn')?.addEventListener('click', function() {
-                const searchText = document.getElementById('searchInput').value;
-                if (searchText) {
-                    searchAndHighlight(searchText);
-                }
-            });
+            document.getElementById('searchBtn')?.addEventListener('click', searchAndHighlight);
+            document.getElementById('zoomInBtn')?.addEventListener('click', zoomIn);
+            document.getElementById('zoomOutBtn')?.addEventListener('click', zoomOut);
+            document.getElementById('resetZoomBtn')?.addEventListener('click', resetZoom);
         };
     </script>
 </head>
 <body>
 <div id="toolbar">
     <button id="prevBtn">◀ Previous</button>
-    <span>Page <span id="currentPage">1</span> of <span id="totalPages">0</span></span>
+    <span id="pageInfo">Page <span id="currentPage">1</span> of <span id="totalPages">0</span></span>
     <button id="nextBtn">Next ▶</button>
-    <input type="number" id="pageInput" style="width: 60px;" placeholder="Page">
+    <input type="number" id="pageInput" placeholder="Page" style="width: 70px; padding: 5px;">
     <button id="goToBtn">Go</button>
-    <button id="clearHighlightsBtn" style="background-color: #f44336; color: white;">Clear Highlights</button>
-    <div style="display: inline-block; margin-left: 20px;">
-        <input type="text" id="searchInput" placeholder="Search text..." style="padding: 5px;">
-        <button id="searchBtn">Search & Highlight</button>
+    <div style="flex:1"></div>
+    <button id="zoomOutBtn" title="Zoom Out">🔍−</button>
+    <button id="zoomInBtn" title="Zoom In">🔍+</button>
+    <button id="resetZoomBtn" title="Reset Zoom">100%</button>
+    <button id="clearHighlightsBtn" class="danger-btn">🗑️ Clear Highlights</button>
+    <div>
+        <input type="text" id="searchInput" placeholder="Search text...">
+        <button id="searchBtn" class="success-btn">🔍 Search & Highlight</button>
     </div>
 </div>
+
 <div id="viewerContainer"></div>
-<div id="controlPanel" class="control-panel">
-    <strong>PDF Highlighting Controls</strong>
-    <hr>
-    <button id="clearHighlightsBtn2">Clear All Highlights</button>
+
+<div id="legend">
+    <h4>📌 Highlight Legend</h4>
+    <div class="legend-item">
+        <span class="legend-color" style="background: rgba(255, 255, 0, 0.4);"></span>
+        Extracted Information from Summary
+    </div>
+    <div class="legend-item">
+        <span class="legend-color" style="background: rgba(255, 235, 59, 0.5);"></span>
+        Search Results
+    </div>
+    <hr style="margin: 5px 0;">
+    <div class="legend-item">
+        💡 Hover over highlights to see extracted text
+    </div>
 </div>
-<div id="highlightInfo" class="highlight-info"></div>
 
-<script>
-    // Additional setup for Go to Page button
-    document.getElementById('goToBtn')?.addEventListener('click', function() {
-        const page = parseInt(document.getElementById('pageInput').value);
-        if (!isNaN(page)) {
-            goToPage(page);
-        }
-    });
-
-    document.getElementById('clearHighlightsBtn2')?.addEventListener('click', function() {
-        clearHighlights();
-        document.getElementById('highlightInfo').style.display = 'none';
-    });
-</script>
+<div id="highlightInfo" style="display: none; position: fixed; bottom: 10px; left: 10px; background: rgba(46, 204, 113, 0.9); color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; z-index: 1001;">
+    ✨ Highlights applied from summary ✨
+</div>
 </body>
 </html>

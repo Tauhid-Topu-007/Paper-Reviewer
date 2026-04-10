@@ -310,67 +310,115 @@ public class MainController {
         }
 
         statusLabel.setText("Preparing highlights for extracted information...");
+        progressIndicator.setVisible(true);
 
-        // Create highlights data from extracted information
-        ExtractedInfo info = currentAnalysis.getExtractedInfo();
-        List<HighlightData> highlights = new ArrayList<>();
+        // Run highlighting in background
+        Task<Void> highlightTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                updateMessage("Extracting key phrases from summary...");
 
-        // Highlight research problem
-        if (info.getResearchProblem() != null && !info.getResearchProblem().equals("Not clearly stated")) {
-            highlights.add(new HighlightData(extractKeyPhrases(info.getResearchProblem()), 1, "#FFEB3B"));
-        }
+                ExtractedInfo info = currentAnalysis.getExtractedInfo();
+                List<HighlightData> highlights = new ArrayList<>();
 
-        // Highlight research gap
-        if (info.getResearchGap() != null && !info.getResearchGap().equals("Not explicitly stated")) {
-            highlights.add(new HighlightData(extractKeyPhrases(info.getResearchGap()), 1, "#FFC107"));
-        }
-
-        // Highlight methodology
-        if (info.getMethodology() != null && !info.getMethodology().equals("Not clearly described")) {
-            highlights.add(new HighlightData(extractKeyPhrases(info.getMethodology()), 2, "#4CAF50"));
-        }
-
-        // Highlight key findings
-        if (info.getKeyFindings() != null && !info.getKeyFindings().isEmpty()) {
-            for (String finding : info.getKeyFindings()) {
-                if (finding != null && !finding.equals("Key findings not clearly presented")) {
-                    highlights.add(new HighlightData(extractKeyPhrases(finding), 3, "#2196F3"));
+                // Extract key phrases from summary
+                String summary = currentAnalysis.getSummary();
+                if (summary != null && !summary.isEmpty()) {
+                    List<String> summaryPhrases = extractKeyPhrasesForHighlight(summary);
+                    if (!summaryPhrases.isEmpty()) {
+                        highlights.add(new HighlightData(summaryPhrases, 1, "rgba(255, 255, 0, 0.5)"));
+                    }
                 }
+
+                // Extract from research problem
+                if (info.getResearchProblem() != null && !info.getResearchProblem().equals("Not clearly stated")) {
+                    List<String> phrases = extractKeyPhrasesForHighlight(info.getResearchProblem());
+                    if (!phrases.isEmpty()) {
+                        highlights.add(new HighlightData(phrases, 1, "rgba(255, 255, 0, 0.5)"));
+                    }
+                }
+
+                // Extract from research gap
+                if (info.getResearchGap() != null && !info.getResearchGap().equals("Not explicitly stated")) {
+                    List<String> phrases = extractKeyPhrasesForHighlight(info.getResearchGap());
+                    if (!phrases.isEmpty()) {
+                        highlights.add(new HighlightData(phrases, 1, "rgba(255, 255, 0, 0.5)"));
+                    }
+                }
+
+                // Extract from methodology
+                if (info.getMethodology() != null && !info.getMethodology().equals("Not clearly described")) {
+                    List<String> phrases = extractKeyPhrasesForHighlight(info.getMethodology());
+                    if (!phrases.isEmpty()) {
+                        highlights.add(new HighlightData(phrases, 2, "rgba(255, 255, 0, 0.5)"));
+                    }
+                }
+
+                // Extract from key findings
+                if (info.getKeyFindings() != null && !info.getKeyFindings().isEmpty()) {
+                    for (String finding : info.getKeyFindings()) {
+                        if (finding != null && !finding.equals("Key findings not clearly presented")) {
+                            List<String> phrases = extractKeyPhrasesForHighlight(finding);
+                            if (!phrases.isEmpty()) {
+                                highlights.add(new HighlightData(phrases, 3, "rgba(255, 255, 0, 0.5)"));
+                            }
+                        }
+                    }
+                }
+
+                // Extract from abstract
+                if (info.getAbstractText() != null && !info.getAbstractText().equals("Abstract not available")) {
+                    List<String> phrases = extractKeyPhrasesForHighlight(info.getAbstractText());
+                    if (!phrases.isEmpty()) {
+                        highlights.add(new HighlightData(phrases, 1, "rgba(255, 255, 0, 0.5)"));
+                    }
+                }
+
+                updateMessage("Applying " + highlights.size() + " highlights to PDF...");
+
+                // Convert to JSON and send to PDF viewer
+                String highlightsJson = convertHighlightsToJson(highlights);
+
+                Platform.runLater(() -> {
+                    String script = String.format(
+                            "if (typeof highlightFromJava !== 'undefined') {" +
+                                    "  highlightFromJava('%s');" +
+                                    "} else {" +
+                                    "  console.log('Highlight function not available');" +
+                                    "  alert('PDF viewer not fully loaded. Please wait and try again.');" +
+                                    "}",
+                            escapeJson(highlightsJson)
+                    );
+                    pdfPreview.getEngine().executeScript(script);
+                });
+
+                return null;
             }
-        }
+        };
 
-        // Highlight limitations
-        if (info.getLimitations() != null && !info.getLimitations().equals("Not explicitly stated")) {
-            highlights.add(new HighlightData(extractKeyPhrases(info.getLimitations()), 4, "#F44336"));
-        }
+        highlightTask.setOnRunning(e -> {
+            statusLabel.textProperty().bind(highlightTask.messageProperty());
+        });
 
-        // Highlight future work
-        if (info.getFutureWork() != null && !info.getFutureWork().equals("Not discussed")) {
-            highlights.add(new HighlightData(extractKeyPhrases(info.getFutureWork()), 5, "#9C27B0"));
-        }
+        highlightTask.setOnSucceeded(e -> {
+            statusLabel.textProperty().unbind();
+            statusLabel.setText("Highlights applied to PDF!");
+            progressIndicator.setVisible(false);
+            showInfo("Highlight Complete",
+                    "✓ Extracted information has been highlighted in the PDF viewer with yellow color\n\n" +
+                            "• Hover over any yellow highlight to see the extracted text\n" +
+                            "• Use the PDF toolbar to navigate and search\n" +
+                            "• Click 'Clear Highlights' to remove all highlights");
+        });
 
-        // Highlight abstract
-        if (info.getAbstractText() != null && !info.getAbstractText().equals("Abstract not available")) {
-            highlights.add(new HighlightData(extractKeyPhrases(info.getAbstractText()), 1, "#E1BEE7"));
-        }
+        highlightTask.setOnFailed(e -> {
+            statusLabel.textProperty().unbind();
+            statusLabel.setText("Highlight failed");
+            progressIndicator.setVisible(false);
+            showError("Highlight Failed", highlightTask.getException().getMessage());
+        });
 
-        // Convert to JSON and send to PDF viewer
-        String highlightsJson = convertHighlightsToJson(highlights);
-
-        // Execute JavaScript in WebView to highlight
-        String script = String.format(
-                "if (typeof highlightFromJava !== 'undefined') {" +
-                        "  highlightFromJava('%s');" +
-                        "} else {" +
-                        "  console.log('Highlight function not available');" +
-                        "  alert('PDF viewer not fully loaded. Please wait and try again.');" +
-                        "}",
-                escapeJson(highlightsJson)
-        );
-
-        pdfPreview.getEngine().executeScript(script);
-        statusLabel.setText("Highlights applied to PDF!");
-        showInfo("Highlight Complete", "Extracted information has been highlighted in the PDF viewer.\n\nColor Legend:\n• Yellow: Research Problem\n• Orange: Research Gap\n• Green: Methodology\n• Blue: Key Findings\n• Red: Limitations\n• Purple: Future Work\n• Lavender: Abstract");
+        new Thread(highlightTask).start();
     }
 
     // Helper class for highlight data
@@ -403,6 +451,44 @@ public class MainController {
         // If no sentences found, add the whole text
         if (phrases.isEmpty() && text.length() > 15) {
             phrases.add(text.substring(0, Math.min(200, text.length())));
+        }
+
+        return phrases;
+    }
+
+    // Enhanced method to extract key phrases for highlighting
+    private List<String> extractKeyPhrasesForHighlight(String text) {
+        List<String> phrases = new ArrayList<>();
+        if (text == null || text.isEmpty()) return phrases;
+
+        // Remove common stop words and clean text
+        String cleanText = text.replaceAll("[^a-zA-Z0-9\\s.]", " ");
+        cleanText = cleanText.replaceAll("\\s+", " ").trim();
+
+        // Extract meaningful sentences (15-200 characters)
+        String[] sentences = cleanText.split("[.!?]+");
+        for (String sentence : sentences) {
+            String trimmed = sentence.trim();
+            if (trimmed.length() > 20 && trimmed.length() < 250) {
+                // Check if it contains meaningful words
+                String[] words = trimmed.split("\\s+");
+                if (words.length >= 3) {
+                    phrases.add(trimmed);
+                }
+            }
+        }
+
+        // If no good sentences, take first 100 chars of the whole text
+        if (phrases.isEmpty() && cleanText.length() > 20) {
+            String shortText = cleanText.substring(0, Math.min(150, cleanText.length()));
+            if (shortText.split("\\s+").length >= 3) {
+                phrases.add(shortText);
+            }
+        }
+
+        // Limit to 5 phrases per text to avoid overwhelming
+        if (phrases.size() > 5) {
+            phrases = phrases.subList(0, 5);
         }
 
         return phrases;
@@ -843,13 +929,7 @@ public class MainController {
                 "6. Export results using the export button\n" +
                 "7. Use the custom title bar buttons to control the window\n\n" +
                 "Highlight Colors:\n" +
-                "• Yellow: Research Problem\n" +
-                "• Orange: Research Gap\n" +
-                "• Green: Methodology\n" +
-                "• Blue: Key Findings\n" +
-                "• Red: Limitations\n" +
-                "• Purple: Future Work\n" +
-                "• Lavender: Abstract\n\n" +
+                "• Yellow: All extracted information from the summary\n\n" +
                 "The analysis extracts:\n" +
                 "• Basic paper information (title, authors, abstract, keywords)\n" +
                 "• Research components (problem, gap, questions, hypothesis)\n" +
