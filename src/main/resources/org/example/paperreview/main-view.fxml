@@ -65,22 +65,31 @@
     <center>
         <SplitPane dividerPositions="0.35" BorderPane.alignment="CENTER">
             <items>
+                <!-- Left Panel - PDF Viewer -->
                 <VBox spacing="10">
                     <padding>
                         <Insets top="10" right="10" bottom="10" left="10"/>
                     </padding>
-                    <Label text="PDF Preview" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
-                    <WebView fx:id="pdfPreview" VBox.vgrow="ALWAYS" prefHeight="400"/>
-                    <Label text="💡 Tip: Click 'Open Highlighted PDF' to view the highlighted PDF in your default viewer" style="-fx-text-fill: #666; -fx-font-size: 11px;"/>
+                    <Label text="PDF Viewer" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                    <WebView fx:id="pdfPreview" VBox.vgrow="ALWAYS" prefHeight="500"/>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="◀ Previous" onAction="#prevPage"/>
+                        <Label text="Page:"/>
+                        <Label fx:id="pageNumberLabel" text="1"/>
+                        <Label text="of"/>
+                        <Label fx:id="totalPagesLabel" text="0"/>
+                        <Button text="Next ▶" onAction="#nextPage"/>
+                    </HBox>
                 </VBox>
 
+                <!-- Right Panel - Tabs -->
                 <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
-                    <Tab text="Extracted Information">
+
+                    <!-- Tab 1: Extracted Information -->
+                    <Tab text="📋 Extracted Information">
                         <ScrollPane fitToWidth="true">
                             <VBox spacing="8">
-                                <padding>
-                                    <Insets top="10" right="10" bottom="10" left="10"/>
-                                </padding>
+                                <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
 
                                 <Label text="Paper Title" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="paperTitleLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
@@ -89,24 +98,28 @@
                                 <Label fx:id="authorsLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
 
                                 <Label text="Abstract" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="abstractLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="abstractLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="100"/>
 
                                 <Label text="Keywords" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="keywordsLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
 
-                                <Label text="Publication Details" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+                                <Label text="Publication Year" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="yearLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+
+                                <Label text="Venue" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="venueLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+
+                                <Label text="DOI" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="doiLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
 
                                 <Label text="Research Domain" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="domainLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
 
                                 <Label text="Research Problem" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="problemLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="problemLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="60"/>
 
                                 <Label text="Research Gap" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="gapLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="gapLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="60"/>
 
                                 <Label text="Research Questions" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="questionsLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
@@ -115,7 +128,7 @@
                                 <Label fx:id="hypothesisLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
 
                                 <Label text="Methodology" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="methodologyLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="methodologyLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="80"/>
 
                                 <Label text="Data Collection Methods" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="dataCollectionLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
@@ -130,13 +143,16 @@
                                 <Label fx:id="metricsLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
 
                                 <Label text="Key Findings" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="findingsLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="findingsLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="100"/>
 
                                 <Label text="Limitations" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="limitationsLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="limitationsLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="60"/>
 
                                 <Label text="Future Work" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
-                                <Label fx:id="futureWorkLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+                                <TextArea fx:id="futureWorkLabel" wrapText="true" editable="false" style="-fx-background-color: #ecf0f1;" prefHeight="60"/>
+
+                                <Label text="Models &amp; Algorithms Used" style="-fx-font-weight: bold; -fx-text-fill: #9C27B0;"/>
+                                <Label fx:id="modelsUsedLabel" wrapText="true" style="-fx-background-color: #f3e5f5; -fx-padding: 5; -fx-border-radius: 3;"/>
 
                                 <Label text="Paper Metrics" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="figuresLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
@@ -149,14 +165,14 @@
                         </ScrollPane>
                     </Tab>
 
-                    <Tab text="Review Assistant">
+                    <!-- Tab 2: Review Assistant -->
+                    <Tab text="⭐ Review Assistant">
                         <ScrollPane fitToWidth="true">
                             <VBox spacing="8">
-                                <padding>
-                                    <Insets top="10" right="10" bottom="10" left="10"/>
-                                </padding>
+                                <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+
                                 <Label text="Executive Summary" style="-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2c3e50;"/>
-                                <TextArea fx:id="summaryArea" wrapText="true" prefHeight="100" style="-fx-background-color: #ecf0f1;"/>
+                                <TextArea fx:id="summaryArea" wrapText="true" prefHeight="120" style="-fx-background-color: #ecf0f1;"/>
 
                                 <Label text="Strengths" style="-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #27ae60;"/>
                                 <ListView fx:id="strengthsList" prefHeight="100"/>
@@ -176,6 +192,9 @@
 
                                 <Label text="Plagiarism Risk" style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
                                 <Label fx:id="plagiarismLabel" wrapText="true" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-border-radius: 3;"/>
+
+                                <Label text="Recommendation" style="-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #e74c3c;"/>
+                                <Label fx:id="recommendationLabel" wrapText="true" style="-fx-background-color: #fdebd0; -fx-padding: 10; -fx-border-radius: 5;"/>
                             </VBox>
                         </ScrollPane>
                     </Tab>

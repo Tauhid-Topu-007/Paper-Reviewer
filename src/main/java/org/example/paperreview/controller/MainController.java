@@ -25,23 +25,26 @@ public class MainController {
     @FXML private WebView pdfPreview;
     @FXML private ProgressBar progressIndicator;
     @FXML private Label statusLabel;
+    @FXML private Label pageNumberLabel;
+    @FXML private Label totalPagesLabel;
 
     // Extracted info labels
     @FXML private Label paperTitleLabel;
     @FXML private Label authorsLabel;
     @FXML private Label domainLabel;
-    @FXML private Label problemLabel;
-    @FXML private Label gapLabel;
+    @FXML private TextArea problemLabel;
+    @FXML private TextArea gapLabel;
     @FXML private Label questionsLabel;
     @FXML private Label hypothesisLabel;
-    @FXML private Label methodologyLabel;
+    @FXML private TextArea methodologyLabel;
     @FXML private Label dataCollectionLabel;
-    @FXML private Label findingsLabel;
+    @FXML private TextArea findingsLabel;
     @FXML private Label citationsLabel;
     @FXML private Label publicationLabel;
+    @FXML private Label modelsUsedLabel;
 
     // New enhanced fields
-    @FXML private Label abstractLabel;
+    @FXML private TextArea abstractLabel;
     @FXML private Label keywordsLabel;
     @FXML private Label venueLabel;
     @FXML private Label doiLabel;
@@ -49,8 +52,8 @@ public class MainController {
     @FXML private Label sampleSizeLabel;
     @FXML private Label toolsLabel;
     @FXML private Label metricsLabel;
-    @FXML private Label limitationsLabel;
-    @FXML private Label futureWorkLabel;
+    @FXML private TextArea limitationsLabel;
+    @FXML private TextArea futureWorkLabel;
     @FXML private Label figuresLabel;
     @FXML private Label tablesLabel;
     @FXML private Label referencesLabel;
@@ -65,6 +68,7 @@ public class MainController {
     @FXML private Label qualityScoreLabel;
     @FXML private Label writingQualityLabel;
     @FXML private Label plagiarismLabel;
+    @FXML private Label recommendationLabel;
 
     // Window control variables
     private double xOffset = 0;
@@ -84,6 +88,8 @@ public class MainController {
     private File currentPDFFile;
     private File highlightedPDFFile;
     private boolean pdfViewerLoaded = false;
+    private int currentPage = 1;
+    private int totalPages = 0;
 
     @FXML
     public void initialize() {
@@ -94,12 +100,10 @@ public class MainController {
         pdfHighlighter = new PDFHighlighterService();
         currentAnalysis = new PaperAnalysis();
 
-        // Set up list views
         strengthsList.setPlaceholder(new Label("No strengths identified yet"));
         weaknessesList.setPlaceholder(new Label("No weaknesses identified yet"));
         futureScopeList.setPlaceholder(new Label("No future scope identified yet"));
 
-        // Setup window dragging after scene is available
         Platform.runLater(() -> setupWindowDragging());
     }
 
@@ -124,7 +128,6 @@ public class MainController {
         }
     }
 
-    // Window Control Methods
     @FXML
     private void handleMinimize() {
         Stage stage = (Stage) pdfPreview.getScene().getWindow();
@@ -200,7 +203,7 @@ public class MainController {
     private void handleMaximizeExit() {
         Button maximizeButton = (Button) pdfPreview.getScene().lookup("#maximizeButton");
         if (maximizeButton != null) {
-            maximizeButton.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand;");
+            maximizeButton.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand");
         }
     }
 
@@ -248,36 +251,80 @@ public class MainController {
 
     private void loadPDFPreview(File file) {
         try {
-            // Simple HTML viewer that works reliably
-            String htmlContent = "<html><body style='font-family: Arial; padding: 20px; text-align: center;'>" +
-                    "<h2 style='color: #2c3e50;'>📄 PDF Loaded Successfully</h2>" +
-                    "<p><strong>File:</strong> " + file.getName() + "</p>" +
-                    "<p><strong>Pages:</strong> " + pdfParser.getNumberOfPages() + "</p>" +
-                    "<div style='background-color: #e8f5e9; padding: 15px; border-radius: 8px; margin-top: 20px;'>" +
-                    "<p style='color: #2e7d32;'>✓ PDF is ready for analysis</p>" +
-                    "<p>Click <strong>'Analyze Paper'</strong> to extract information</p>" +
-                    "<p>Click <strong>'Highlight Extracted Info'</strong> to create a highlighted PDF</p>" +
-                    "</div>" +
-                    "<hr style='margin: 20px;'>" +
-                    "<p style='color: #666;'>💡 <strong>Tip:</strong> For best viewing experience, use the <strong>'Open Highlighted PDF'</strong> button to open in your default PDF viewer.</p>" +
-                    "</body></html>";
+            String htmlContent = "<!DOCTYPE html>\n" +
+                    "<html>\n" +
+                    "<head>\n" +
+                    "    <style>\n" +
+                    "        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }\n" +
+                    "        .container { max-width: 800px; margin: 50px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; }\n" +
+                    "        .header { background: #2c3e50; color: white; padding: 20px; text-align: center; }\n" +
+                    "        .content { padding: 30px; }\n" +
+                    "        .info-box { background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #4CAF50; }\n" +
+                    "        h2 { color: #2c3e50; margin-top: 0; }\n" +
+                    "    </style>\n" +
+                    "</head>\n" +
+                    "<body>\n" +
+                    "    <div class='container'>\n" +
+                    "        <div class='header'>\n" +
+                    "            <h1>📄 Academic Paper Review Assistant</h1>\n" +
+                    "        </div>\n" +
+                    "        <div class='content'>\n" +
+                    "            <h2>✅ PDF Loaded Successfully!</h2>\n" +
+                    "            <div class='info-box'>\n" +
+                    "                <strong>📁 File:</strong> " + file.getName() + "<br>\n" +
+                    "                <strong>📄 Pages:</strong> " + pdfParser.getNumberOfPages() + "<br>\n" +
+                    "                <strong>📊 Status:</strong> Ready for analysis\n" +
+                    "            </div>\n" +
+                    "            <h3>🎯 Next Steps:</h3>\n" +
+                    "            <ol>\n" +
+                    "                <li>Click <strong>'Analyze Paper'</strong> to extract all information</li>\n" +
+                    "                <li>View extracted information in the tabs</li>\n" +
+                    "                <li>Click <strong>'Highlight Extracted Info'</strong> to create highlighted PDF</li>\n" +
+                    "            </ol>\n" +
+                    "        </div>\n" +
+                    "    </div>\n" +
+                    "</body>\n" +
+                    "</html>";
 
             pdfPreview.getEngine().loadContent(htmlContent);
             pdfViewerLoaded = true;
-            statusLabel.setText("PDF loaded: " + file.getName());
-
         } catch (Exception e) {
             e.printStackTrace();
-            pdfPreview.getEngine().loadContent(
-                    "<html><body style='font-family: Arial; padding: 20px;'>" +
-                            "<h2>PDF Loaded</h2>" +
-                            "<p>File: " + file.getName() + "</p>" +
-                            "<p>Pages: " + pdfParser.getNumberOfPages() + "</p>" +
-                            "<p>Click 'Open Highlighted PDF' to view the PDF with highlights</p>" +
-                            "</body></html>"
-            );
+            pdfPreview.getEngine().loadContent("<html><body><h3>PDF Loaded</h3><p>File: " + file.getName() + "</p></body></html>");
             pdfViewerLoaded = true;
         }
+    }
+
+    @FXML
+    private void prevPage() {
+        // Simple navigation - reload the page
+        if (currentPage > 1) {
+            currentPage--;
+            pageNumberLabel.setText(String.valueOf(currentPage));
+        }
+    }
+
+    @FXML
+    private void nextPage() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            pageNumberLabel.setText(String.valueOf(currentPage));
+        }
+    }
+
+    @FXML
+    private void zoomIn() {
+        // Zoom functionality
+    }
+
+    @FXML
+    private void zoomOut() {
+        // Zoom functionality
+    }
+
+    @FXML
+    private void resetZoom() {
+        // Reset zoom functionality
     }
 
     @FXML
@@ -303,28 +350,13 @@ public class MainController {
                 ExtractedInfo info = currentAnalysis.getExtractedInfo();
                 Map<String, String> extractedInfoMap = new LinkedHashMap<>();
 
-                // Add ALL extracted information for highlighting
                 addToHighlightMap(extractedInfoMap, "Paper Title", info.getPaperTitle());
-                addToHighlightMap(extractedInfoMap, "Authors", info.getAuthors());
                 addToHighlightMap(extractedInfoMap, "Abstract", info.getAbstractText());
-                addToHighlightMap(extractedInfoMap, "Keywords", info.getKeywords());
-                addToHighlightMap(extractedInfoMap, "Research Domain", info.getResearchDomain());
                 addToHighlightMap(extractedInfoMap, "Research Problem", info.getResearchProblem());
                 addToHighlightMap(extractedInfoMap, "Research Gap", info.getResearchGap());
                 addToHighlightMap(extractedInfoMap, "Methodology", info.getMethodology());
                 addToHighlightMap(extractedInfoMap, "Executive Summary", currentAnalysis.getSummary());
 
-                // Add ALL research questions
-                if (info.getResearchQuestions() != null) {
-                    for (int i = 0; i < info.getResearchQuestions().size(); i++) {
-                        String question = info.getResearchQuestions().get(i);
-                        if (isValidForHighlight(question)) {
-                            extractedInfoMap.put("Research Question " + (i + 1), question);
-                        }
-                    }
-                }
-
-                // Add ALL key findings
                 if (info.getKeyFindings() != null) {
                     for (int i = 0; i < info.getKeyFindings().size(); i++) {
                         String finding = info.getKeyFindings().get(i);
@@ -334,56 +366,10 @@ public class MainController {
                     }
                 }
 
-                // Add hypothesis
-                addToHighlightMap(extractedInfoMap, "Hypothesis", info.getResearchHypothesis());
-
-                // Add data collection methods
-                addToHighlightMap(extractedInfoMap, "Data Collection", info.getDataCollectionMethods());
-
-                // Add tools and technologies
-                addToHighlightMap(extractedInfoMap, "Tools Used", info.getToolsAndTechnologies());
-
-                // Add evaluation metrics
-                addToHighlightMap(extractedInfoMap, "Evaluation Metrics", info.getEvaluationMetrics());
-
-                // Add limitations
-                addToHighlightMap(extractedInfoMap, "Limitations", info.getLimitations());
-
-                // Add future work
-                addToHighlightMap(extractedInfoMap, "Future Work", info.getFutureWork());
-
-                // Add practical implications
-                if (info.getPracticalImplications() != null) {
-                    for (int i = 0; i < info.getPracticalImplications().size(); i++) {
-                        String implication = info.getPracticalImplications().get(i);
-                        if (isValidForHighlight(implication)) {
-                            extractedInfoMap.put("Practical Implication " + (i + 1), implication);
-                        }
-                    }
-                }
-
-                // Add theoretical implications
-                if (info.getTheoreticalImplications() != null) {
-                    for (int i = 0; i < info.getTheoreticalImplications().size(); i++) {
-                        String implication = info.getTheoreticalImplications().get(i);
-                        if (isValidForHighlight(implication)) {
-                            extractedInfoMap.put("Theoretical Implication " + (i + 1), implication);
-                        }
-                    }
-                }
-
                 updateMessage("Searching " + extractedInfoMap.size() + " items in PDF...");
 
-                System.out.println("\n========== STARTING HIGHLIGHT PROCESS ==========");
-                System.out.println("Total items to search: " + extractedInfoMap.size());
-
-                // Create highlighted PDF
                 PDFHighlighterService highlighter = new PDFHighlighterService();
-                File highlightedFile = highlighter.createHighlightedPDF(currentPDFFile, extractedInfoMap);
-
-                System.out.println("========== HIGHLIGHT PROCESS COMPLETED ==========\n");
-
-                return highlightedFile;
+                return highlighter.createHighlightedPDF(currentPDFFile, extractedInfoMap);
             }
         };
 
@@ -399,15 +385,9 @@ public class MainController {
 
             try {
                 java.awt.Desktop.getDesktop().open(highlightedPDFFile);
-                showInfo("Highlight Complete",
-                        "✓ PDF has been highlighted successfully!\n\n" +
-                                "All extracted information has been highlighted in YELLOW color.\n\n" +
-                                "The highlighted PDF has been opened automatically.\n\n" +
-                                "Check the console for detailed search results.");
+                showInfo("Highlight Complete", "PDF highlighted successfully!");
             } catch (IOException ex) {
-                showInfo("Highlight Complete",
-                        "✓ PDF has been highlighted successfully!\n\nFile saved at:\n" +
-                                highlightedPDFFile.getAbsolutePath());
+                showInfo("Highlight Complete", "File saved at: " + highlightedPDFFile.getAbsolutePath());
             }
         });
 
@@ -417,7 +397,6 @@ public class MainController {
             progressIndicator.setVisible(false);
             Throwable exception = highlightTask.getException();
             showError("Highlight Failed", exception != null ? exception.getMessage() : "Unknown error");
-            exception.printStackTrace();
         });
 
         new Thread(highlightTask).start();
@@ -427,9 +406,6 @@ public class MainController {
         if (isValidForHighlight(value)) {
             String shortValue = value.length() > 500 ? value.substring(0, 500) : value;
             map.put(key, shortValue);
-            System.out.println("Added to highlight map: " + key + " (" + shortValue.length() + " chars)");
-        } else {
-            System.out.println("Skipped (invalid): " + key);
         }
     }
 
@@ -437,8 +413,7 @@ public class MainController {
         if (text == null || text.isEmpty()) return false;
         String[] invalidValues = {"N/A", "Not found", "Not available", "Not clearly stated",
                 "Not explicitly stated", "Not clearly described", "Not specified",
-                "No summary available", "Abstract not available", "Keywords not found",
-                "Authors not found", "Title not found", "", "null"};
+                "No summary available", "Abstract not available", "Keywords not found"};
         for (String invalid : invalidValues) {
             if (text.equals(invalid)) return false;
         }
@@ -452,25 +427,23 @@ public class MainController {
                 java.awt.Desktop.getDesktop().open(highlightedPDFFile);
                 statusLabel.setText("Opened highlighted PDF");
             } catch (IOException e) {
-                showError("Cannot Open PDF", "Could not open the PDF file: " + e.getMessage());
+                showError("Cannot Open PDF", e.getMessage());
             }
         } else {
-            showError("No Highlighted PDF", "Please click 'Highlight Extracted Info' first to create a highlighted PDF");
+            showError("No Highlighted PDF", "Please click 'Highlight Extracted Info' first");
         }
     }
 
     @FXML
     private void saveHighlightedPDF() {
         if (highlightedPDFFile == null || !highlightedPDFFile.exists()) {
-            showError("No Highlighted PDF", "Please click 'Highlight Extracted Info' first to create a highlighted PDF");
+            showError("No Highlighted PDF", "Please click 'Highlight Extracted Info' first");
             return;
         }
 
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save Highlighted PDF");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PDF Files", "*.pdf")
-        );
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Files", "*.pdf"));
         fileChooser.setInitialFileName("highlighted_paper.pdf");
 
         File saveFile = fileChooser.showSaveDialog(pdfPreview.getScene().getWindow());
@@ -481,7 +454,7 @@ public class MainController {
                 showInfo("Save Successful", "Highlighted PDF saved to:\n" + saveFile.getAbsolutePath());
                 statusLabel.setText("Highlighted PDF saved!");
             } catch (IOException e) {
-                showError("Save Failed", "Could not save file: " + e.getMessage());
+                showError("Save Failed", e.getMessage());
             }
         }
     }
@@ -537,9 +510,6 @@ public class MainController {
                 String recommendation = generateRecommendation(qualityScore, strengths, weaknesses);
                 analysis.setRecommendation(recommendation);
 
-                List<String> improvements = generateImprovements(weaknesses, info);
-                analysis.setSuggestedImprovements(improvements);
-
                 return analysis;
             }
         };
@@ -573,82 +543,87 @@ public class MainController {
 
     private String generateRecommendation(double score, List<String> strengths, List<String> weaknesses) {
         if (score >= 80) {
-            return "Strongly Accept - High quality paper with minor improvements needed";
+            return "✅ Strongly Accept - High quality paper";
         } else if (score >= 70) {
-            return "Accept - Good quality paper with some revisions required";
+            return "📝 Accept - Good quality paper with minor revisions";
         } else if (score >= 60) {
-            return "Minor Revisions - Paper has potential but needs significant improvements";
+            return "🔄 Minor Revisions - Paper needs improvements";
         } else if (score >= 50) {
-            return "Major Revisions - Paper requires substantial changes";
+            return "⚠️ Major Revisions - Paper requires substantial changes";
         } else {
-            return "Reject - Paper does not meet quality standards";
+            return "❌ Reject - Paper does not meet quality standards";
         }
-    }
-
-    private List<String> generateImprovements(List<String> weaknesses, ExtractedInfo info) {
-        List<String> improvements = new ArrayList<>();
-
-        for (String weakness : weaknesses) {
-            if (weakness.contains("sample size")) {
-                improvements.add("Consider increasing sample size or adding validation study");
-            } else if (weakness.contains("limitation")) {
-                improvements.add("Address the identified limitations in future work");
-            } else if (weakness.contains("evaluation")) {
-                improvements.add("Include more comprehensive evaluation metrics");
-            }
-        }
-
-        if (info.getFigureCount() < 3) {
-            improvements.add("Add more figures to illustrate key concepts");
-        }
-
-        if (info.getTableCount() < 2) {
-            improvements.add("Include tables to summarize key results");
-        }
-
-        if (improvements.isEmpty()) {
-            improvements.add("Continue to validate findings with real-world applications");
-        }
-
-        return improvements;
     }
 
     private void displayResults(PaperAnalysis analysis) {
         ExtractedInfo info = analysis.getExtractedInfo();
 
         Platform.runLater(() -> {
-            paperTitleLabel.setText(info.getPaperTitle() != null ? info.getPaperTitle() : "N/A");
-            authorsLabel.setText(info.getAuthors() != null ? info.getAuthors() : "N/A");
-            publicationLabel.setText(info.getPublicationCategory() != null ? info.getPublicationCategory() : "N/A");
+            // Basic Information
+            paperTitleLabel.setText(getValidText(info.getPaperTitle(), "Title not found"));
+            authorsLabel.setText(getValidText(info.getAuthors(), "Authors not found"));
+            publicationLabel.setText(getValidText(info.getPublicationCategory(), "N/A"));
 
-            if (abstractLabel != null) abstractLabel.setText(info.getAbstractText() != null ? info.getAbstractText() : "N/A");
-            if (keywordsLabel != null) keywordsLabel.setText(info.getKeywords() != null ? info.getKeywords() : "N/A");
-            if (venueLabel != null) venueLabel.setText(info.getPublicationVenue() != null ? info.getPublicationVenue() : "N/A");
-            if (doiLabel != null) doiLabel.setText(info.getDoi() != null ? info.getDoi() : "N/A");
-            if (yearLabel != null) yearLabel.setText(info.getPublicationYear() != null ? info.getPublicationYear() : "N/A");
-            if (sampleSizeLabel != null) sampleSizeLabel.setText(info.getSampleSize() != null ? info.getSampleSize() : "N/A");
-            if (toolsLabel != null) toolsLabel.setText(info.getToolsAndTechnologies() != null ? info.getToolsAndTechnologies() : "N/A");
-            if (metricsLabel != null) metricsLabel.setText(info.getEvaluationMetrics() != null ? info.getEvaluationMetrics() : "N/A");
-            if (limitationsLabel != null) limitationsLabel.setText(info.getLimitations() != null ? info.getLimitations() : "N/A");
-            if (futureWorkLabel != null) futureWorkLabel.setText(info.getFutureWork() != null ? info.getFutureWork() : "N/A");
-            if (figuresLabel != null) figuresLabel.setText(String.valueOf(info.getFigureCount()));
-            if (tablesLabel != null) tablesLabel.setText(String.valueOf(info.getTableCount()));
-            if (referencesLabel != null) referencesLabel.setText(String.valueOf(info.getTotalReferences()));
-            if (readabilityLabel != null) readabilityLabel.setText(String.format("%.2f - %s", info.getReadabilityScore(), info.getLanguageComplexity()));
+            abstractLabel.setText(getValidText(info.getAbstractText(), "Abstract not available"));
+            keywordsLabel.setText(getValidText(info.getKeywords(), "Keywords not found"));
+            venueLabel.setText(getValidText(info.getPublicationVenue(), "Not specified"));
+            doiLabel.setText(getValidText(info.getDoi(), "Not available"));
+            yearLabel.setText(getValidText(info.getPublicationYear(), "Unknown"));
+            sampleSizeLabel.setText(getValidText(info.getSampleSize(), "Not specified"));
+            toolsLabel.setText(getValidText(info.getToolsAndTechnologies(), "Not specified"));
+            metricsLabel.setText(getValidText(info.getEvaluationMetrics(), "Not specified"));
+            limitationsLabel.setText(getValidText(info.getLimitations(), "Not specified"));
+            futureWorkLabel.setText(getValidText(info.getFutureWork(), "Not specified"));
+            figuresLabel.setText(String.valueOf(info.getFigureCount()));
+            tablesLabel.setText(String.valueOf(info.getTableCount()));
+            referencesLabel.setText(String.valueOf(info.getTotalReferences()));
+            readabilityLabel.setText(String.format("%.2f - %s", info.getReadabilityScore(), info.getLanguageComplexity()));
 
-            domainLabel.setText(info.getResearchDomain() != null ? info.getResearchDomain() : "N/A");
-            problemLabel.setText(info.getResearchProblem() != null ? info.getResearchProblem() : "N/A");
-            gapLabel.setText(info.getResearchGap() != null ? info.getResearchGap() : "N/A");
-            questionsLabel.setText(info.getResearchQuestions() != null && !info.getResearchQuestions().isEmpty() ?
-                    String.join("\n", info.getResearchQuestions()) : "N/A");
-            hypothesisLabel.setText(info.getResearchHypothesis() != null ? info.getResearchHypothesis() : "N/A");
-            methodologyLabel.setText(info.getMethodology() != null ? info.getMethodology() : "N/A");
-            dataCollectionLabel.setText(info.getDataCollectionMethods() != null ? info.getDataCollectionMethods() : "N/A");
-            findingsLabel.setText(info.getKeyFindings() != null && !info.getKeyFindings().isEmpty() ?
-                    String.join("\n", info.getKeyFindings()) : "N/A");
+            // Research Components
+            domainLabel.setText(getValidText(info.getResearchDomain(), "Not classified"));
+            problemLabel.setText(getValidText(info.getResearchProblem(), "Not clearly stated"));
+            gapLabel.setText(getValidText(info.getResearchGap(), "Not explicitly stated"));
+
+            if (info.getResearchQuestions() != null && !info.getResearchQuestions().isEmpty()) {
+                questionsLabel.setText(String.join("\n", info.getResearchQuestions()));
+            } else {
+                questionsLabel.setText("N/A");
+            }
+
+            hypothesisLabel.setText(getValidText(info.getResearchHypothesis(), "No explicit hypothesis"));
+            methodologyLabel.setText(getValidText(info.getMethodology(), "Not clearly described"));
+            dataCollectionLabel.setText(getValidText(info.getDataCollectionMethods(), "Not specified"));
+
+            if (info.getKeyFindings() != null && !info.getKeyFindings().isEmpty()) {
+                findingsLabel.setText(String.join("\n", info.getKeyFindings()));
+            } else {
+                findingsLabel.setText("No key findings extracted");
+            }
+
             citationsLabel.setText(info.getCitations() != null ? info.getCitations().size() + " citations found" : "0 citations found");
 
-            summaryArea.setText(analysis.getSummary() != null ? analysis.getSummary() : "No summary available");
+            // Models Used
+            StringBuilder modelsText = new StringBuilder();
+            if (info.getModelsUsedInPaper() != null && !info.getModelsUsedInPaper().isEmpty()) {
+                modelsText.append("Models: ").append(String.join(", ", info.getModelsUsedInPaper())).append("\n");
+            }
+            if (info.getAlgorithmsUsedInPaper() != null && !info.getAlgorithmsUsedInPaper().isEmpty()) {
+                modelsText.append("Algorithms: ").append(String.join(", ", info.getAlgorithmsUsedInPaper())).append("\n");
+            }
+            if (info.getFrameworksUsedInPaper() != null && !info.getFrameworksUsedInPaper().isEmpty()) {
+                modelsText.append("Frameworks: ").append(String.join(", ", info.getFrameworksUsedInPaper())).append("\n");
+            }
+            if (info.getLibrariesUsedInPaper() != null && !info.getLibrariesUsedInPaper().isEmpty()) {
+                modelsText.append("Libraries: ").append(String.join(", ", info.getLibrariesUsedInPaper()));
+            }
+
+            if (modelsUsedLabel != null) {
+                modelsUsedLabel.setText(modelsText.length() > 0 ? modelsText.toString() : "No specific models detected");
+            }
+
+            // Review Assistant
+            summaryArea.setText(getValidText(analysis.getSummary(), "No summary available"));
+            recommendationLabel.setText(getValidText(analysis.getRecommendation(), "N/A"));
 
             strengthsList.getItems().clear();
             if (analysis.getStrengths() != null && !analysis.getStrengths().isEmpty()) {
@@ -667,9 +642,16 @@ public class MainController {
 
             qualityScoreBar.setProgress(analysis.getQualityScore() / 100.0);
             qualityScoreLabel.setText(String.format("Quality Score: %.1f/100", analysis.getQualityScore()));
-            writingQualityLabel.setText(analysis.getWritingQualityComments() != null ? analysis.getWritingQualityComments() : "N/A");
-            plagiarismLabel.setText(analysis.getPlagiarismRiskIndicator() != null ? analysis.getPlagiarismRiskIndicator() : "N/A");
+            writingQualityLabel.setText(getValidText(analysis.getWritingQualityComments(), "N/A"));
+            plagiarismLabel.setText(getValidText(analysis.getPlagiarismRiskIndicator(), "N/A"));
         });
+    }
+
+    private String getValidText(String text, String defaultValue) {
+        if (text == null || text.isEmpty() || text.equals("null")) {
+            return defaultValue;
+        }
+        return text;
     }
 
     @FXML
@@ -783,21 +765,22 @@ public class MainController {
         findingsLabel.setText("");
         citationsLabel.setText("");
         publicationLabel.setText("");
+        modelsUsedLabel.setText("");
 
-        if (abstractLabel != null) abstractLabel.setText("");
-        if (keywordsLabel != null) keywordsLabel.setText("");
-        if (venueLabel != null) venueLabel.setText("");
-        if (doiLabel != null) doiLabel.setText("");
-        if (yearLabel != null) yearLabel.setText("");
-        if (sampleSizeLabel != null) sampleSizeLabel.setText("");
-        if (toolsLabel != null) toolsLabel.setText("");
-        if (metricsLabel != null) metricsLabel.setText("");
-        if (limitationsLabel != null) limitationsLabel.setText("");
-        if (futureWorkLabel != null) futureWorkLabel.setText("");
-        if (figuresLabel != null) figuresLabel.setText("");
-        if (tablesLabel != null) tablesLabel.setText("");
-        if (referencesLabel != null) referencesLabel.setText("");
-        if (readabilityLabel != null) readabilityLabel.setText("");
+        abstractLabel.setText("");
+        keywordsLabel.setText("");
+        venueLabel.setText("");
+        doiLabel.setText("");
+        yearLabel.setText("");
+        sampleSizeLabel.setText("");
+        toolsLabel.setText("");
+        metricsLabel.setText("");
+        limitationsLabel.setText("");
+        futureWorkLabel.setText("");
+        figuresLabel.setText("");
+        tablesLabel.setText("");
+        referencesLabel.setText("");
+        readabilityLabel.setText("");
 
         summaryArea.clear();
         strengthsList.getItems().clear();
@@ -807,6 +790,7 @@ public class MainController {
         qualityScoreLabel.setText("");
         writingQualityLabel.setText("");
         plagiarismLabel.setText("");
+        recommendationLabel.setText("");
 
         currentAnalysis = null;
         statusLabel.setText("Cleared");
@@ -815,17 +799,9 @@ public class MainController {
     @FXML
     private void handleToggleDarkMode() {
         Scene scene = pdfPreview.getScene();
-        String darkModeCSS = "/org/example/paperreview/dark-mode.css";
-
         if (scene.getStylesheets().isEmpty()) {
-            try {
-                if (getClass().getResource(darkModeCSS) != null) {
-                    scene.getStylesheets().add(getClass().getResource(darkModeCSS).toExternalForm());
-                    statusLabel.setText("Dark mode enabled");
-                }
-            } catch (Exception e) {
-                showError("Error", "Could not load dark mode CSS");
-            }
+            scene.getStylesheets().add(getClass().getResource("/org/example/paperreview/dark-mode.css").toExternalForm());
+            statusLabel.setText("Dark mode enabled");
         } else {
             scene.getStylesheets().clear();
             statusLabel.setText("Light mode enabled");
@@ -843,7 +819,7 @@ public class MainController {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("About");
         alert.setHeaderText("Academic Paper Review Assistant");
-        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nEnhanced Features:\n- Comprehensive information extraction\n- Advanced NLP-based analysis\n- Quality assessment with recommendations\n- Multiple export formats (CSV, DOCX, PDF)\n- PDF highlighting with yellow color\n- Paper metadata extraction\n- Readability analysis\n- Custom window controls\n- Dark/Light mode support");
+        alert.setContentText("Version 2.0\n\nA comprehensive tool for automatic analysis of academic papers.\n\nFeatures:\n- Extract paper information automatically\n- NLP-based analysis\n- Quality assessment with recommendations\n- PDF highlighting\n- Model detection from papers\n- Export to CSV, DOCX, PDF");
         alert.showAndWait();
     }
 
@@ -853,19 +829,12 @@ public class MainController {
         alert.setTitle("Documentation");
         alert.setHeaderText("How to Use");
         alert.setContentText("1. Click 'Upload PDF' to select a research paper\n" +
-                "2. Click 'Analyze Paper' to extract comprehensive information\n" +
+                "2. Click 'Analyze Paper' to extract information\n" +
                 "3. View extracted information in the tabs\n" +
                 "4. Click 'Highlight Extracted Info' to create a highlighted PDF\n" +
-                "5. The highlighted PDF will open automatically with YELLOW highlights\n" +
-                "6. Use 'Save Highlighted PDF' to save it permanently\n\n" +
-                "The analysis extracts:\n" +
-                "• Basic paper information (title, authors, abstract, keywords)\n" +
-                "• Research components (problem, gap, questions, hypothesis)\n" +
-                "• Methodology details (methods, tools, sample size, metrics)\n" +
-                "• Results and findings\n" +
-                "• Limitations and future work\n" +
-                "• Quality assessment and recommendations\n" +
-                "• Paper metadata (figures, tables, references, readability)");
+                "5. The highlighted PDF will open automatically\n" +
+                "6. Use 'Open Highlighted PDF' to view it again\n" +
+                "7. Use 'Save Highlighted PDF' to save it permanently");
         alert.showAndWait();
     }
 

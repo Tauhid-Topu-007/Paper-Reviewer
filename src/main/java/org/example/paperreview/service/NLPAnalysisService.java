@@ -1,10 +1,10 @@
 package org.example.paperreview.service;
 
 import org.example.paperreview.model.ExtractedInfo;
+import org.example.paperreview.model.ModelMetrics;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
-import java.text.BreakIterator;
 
 public class NLPAnalysisService {
 
@@ -90,11 +90,67 @@ public class NLPAnalysisService {
         info.setKeyTerms(extractKeyTerms(fullText));
         info.setTermFrequency(calculateTermFrequency(fullText));
 
+        // Detect models used in the paper
+        detectModelsUsedInPaper(fullText, info);
+
         return info;
     }
 
+    private void detectModelsUsedInPaper(String text, ExtractedInfo info) {
+        String lowerText = text.toLowerCase();
+
+        String[] models = {
+                "Linear Regression", "Logistic Regression", "Decision Tree", "Random Forest",
+                "XGBoost", "Gradient Boosting", "SVM", "Support Vector Machine",
+                "KNN", "K-Nearest Neighbors", "Naive Bayes", "Neural Network",
+                "CNN", "Convolutional Neural Network", "RNN", "Recurrent Neural Network",
+                "LSTM", "Long Short-Term Memory", "GRU", "BERT", "RoBERTa", "GPT",
+                "Transformer", "Autoencoder", "GAN", "Generative Adversarial Network",
+                "K-Means", "DBSCAN", "Hierarchical Clustering", "PCA", "t-SNE"
+        };
+
+        String[] algorithms = {
+                "Backpropagation", "Gradient Descent", "Stochastic Gradient Descent",
+                "Adam", "RMSprop", "Adamax", "Nadam", "AdaGrad", "Batch Normalization",
+                "Dropout", "Regularization", "Cross-Validation"
+        };
+
+        String[] frameworks = {
+                "TensorFlow", "PyTorch", "Keras", "Scikit-learn", "JAX", "MXNet",
+                "Caffe", "Theano", "CNTK", "FastAI", "Hugging Face"
+        };
+
+        String[] libraries = {
+                "NumPy", "Pandas", "Matplotlib", "Seaborn", "Plotly", "Scipy",
+                "NLTK", "SpaCy", "Gensim", "OpenCV", "Pillow"
+        };
+
+        for (String model : models) {
+            if (lowerText.contains(model.toLowerCase())) {
+                info.getModelsUsedInPaper().add(model);
+            }
+        }
+
+        for (String algorithm : algorithms) {
+            if (lowerText.contains(algorithm.toLowerCase())) {
+                info.getAlgorithmsUsedInPaper().add(algorithm);
+            }
+        }
+
+        for (String framework : frameworks) {
+            if (lowerText.contains(framework.toLowerCase())) {
+                info.getFrameworksUsedInPaper().add(framework);
+            }
+        }
+
+        for (String library : libraries) {
+            if (lowerText.contains(library.toLowerCase())) {
+                info.getLibrariesUsedInPaper().add(library);
+            }
+        }
+    }
+
     private String extractTitle(String text) {
-        // Look for common title patterns
         String[] lines = text.split("\\n");
         for (int i = 0; i < Math.min(10, lines.length); i++) {
             String line = lines[i].trim();
@@ -123,7 +179,7 @@ public class NLPAnalysisService {
             String abstractText = matcher.group(1).trim();
             return abstractText.length() > 500 ? abstractText.substring(0, 500) + "..." : abstractText;
         }
-        return "Abstract not found";
+        return "Abstract not available";
     }
 
     private String extractKeywords(String text) {
@@ -568,7 +624,6 @@ public class NLPAnalysisService {
     }
 
     private double calculateReadabilityScore(String text) {
-        // Simplified Flesch Reading Ease calculation
         String[] sentences = text.split("[.!?]+");
         String[] words = text.split("\\s+");
         String[] syllables = text.split("[aeiouAEIOU]+");
@@ -578,7 +633,6 @@ public class NLPAnalysisService {
         double avgSentenceLength = (double) words.length / sentences.length;
         double avgSyllablesPerWord = (double) syllables.length / words.length;
 
-        // Flesch Reading Ease formula
         double score = 206.835 - (1.015 * avgSentenceLength) - (84.6 * avgSyllablesPerWord);
         return Math.max(0, Math.min(100, score));
     }
@@ -602,7 +656,6 @@ public class NLPAnalysisService {
         List<String> keyTerms = new ArrayList<>();
         String lowerText = text.toLowerCase();
 
-        // Technical terms to look for
         String[] technicalTerms = {
                 "algorithm", "framework", "model", "system", "approach", "method", "technique",
                 "analysis", "evaluation", "validation", "optimization", "classification",
@@ -622,7 +675,6 @@ public class NLPAnalysisService {
         Map<String, Integer> freq = new HashMap<>();
         String[] words = text.toLowerCase().split("\\s+");
 
-        // Common stop words to ignore
         Set<String> stopWords = Set.of("the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
                 "of", "with", "by", "is", "are", "was", "were", "be", "been", "being");
 
@@ -633,14 +685,12 @@ public class NLPAnalysisService {
             }
         }
 
-        // Keep only top 30 terms
         return freq.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(30)
                 .collect(HashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), HashMap::putAll);
     }
 
-    // Existing methods from your original service...
     public String generateSummary(String fullText, ExtractedInfo info) {
         StringBuilder summary = new StringBuilder();
         summary.append("This paper presents research in the field of ").append(info.getResearchDomain()).append(". ");
@@ -668,7 +718,6 @@ public class NLPAnalysisService {
     public List<String> identifyStrengths(String fullText, ExtractedInfo info) {
         List<String> strengths = new ArrayList<>();
 
-        // Check for various strength indicators
         if (info.getSampleSize() != null && !info.getSampleSize().equals("Sample size not specified")) {
             try {
                 int sampleSize = Integer.parseInt(info.getSampleSize());
@@ -765,7 +814,6 @@ public class NLPAnalysisService {
             futureScope.add("Future research directions not explicitly discussed");
         }
 
-        // Suggest additional future directions based on limitations
         if (info.getLimitations() != null && !info.getLimitations().equals("Limitations not explicitly stated")) {
             futureScope.add("Address limitations: " + info.getLimitations());
         }
@@ -774,37 +822,29 @@ public class NLPAnalysisService {
     }
 
     public double calculateQualityScore(ExtractedInfo info, List<String> strengths, List<String> weaknesses) {
-        double score = 50.0; // Base score
+        double score = 50.0;
 
-        // Add points for strengths
         score += strengths.size() * 5;
-
-        // Subtract points for weaknesses
         score -= weaknesses.size() * 3;
 
-        // Add points for methodology clarity
         if (!info.getMethodology().equals("Methodology not clearly described")) {
             score += 10;
         }
 
-        // Add points for results presentation
         if (!info.getKeyFindings().isEmpty() && !info.getKeyFindings().get(0).equals("Key findings not clearly presented")) {
             score += 10;
         }
 
-        // Add points for references
         if (info.getTotalReferences() > 30) {
             score += 5;
         } else if (info.getTotalReferences() > 50) {
             score += 10;
         }
 
-        // Add points for figures and tables
         if (info.getFigureCount() + info.getTableCount() > 5) {
             score += 5;
         }
 
-        // Cap at 100
         return Math.min(100, Math.max(0, score));
     }
 
@@ -834,10 +874,8 @@ public class NLPAnalysisService {
     }
 
     public String assessPlagiarismRisk(String fullText) {
-        // This is a simplified check - in production, you'd use actual plagiarism detection APIs
         String lowerText = fullText.toLowerCase();
 
-        // Check for common academic phrases that might indicate proper citation
         boolean hasCitations = lowerText.contains("et al") || lowerText.contains("according to") ||
                 lowerText.contains("as stated in") || lowerText.contains("reference");
 
